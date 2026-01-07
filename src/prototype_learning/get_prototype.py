@@ -3,12 +3,18 @@ import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
+from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 import torch
 from typing import List, Tuple, Dict
 import os
 import warnings
 warnings.filterwarnings('ignore')
 
+# 修改导入方式，使用相对路径导入
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.models.model import T5Model
 
 
@@ -266,8 +272,136 @@ class PrototypeLearner:
         else:
             print(f"找不到原型文件: {load_path}")
 
+    def visualize_prototypes(self, save_path: str = None):
+        """
+        可视化原型向量
+        使用PCA将高维向量降到2D进行可视化
+        
+        Args:
+            save_path: 保存可视化图片的路径，如果为None则直接显示
+        """
+        if not self.prototypes or 'positive_prototypes' not in self.prototypes:
+            print("没有找到原型数据，请先构建原型空间")
+            return
+        
+        # 获取正负原型
+        pos_prototypes = self.prototypes['positive_prototypes']
+        neg_prototypes = self.prototypes['negative_prototypes']
+        
+        # 合并所有原型
+        all_prototypes = np.vstack([pos_prototypes, neg_prototypes])
+        
+        # 使用PCA降维到2D
+        pca = PCA(n_components=2)
+        prototypes_2d = pca.fit_transform(all_prototypes)
+        
+        # 分离正负原型的2D坐标
+        pos_2d = prototypes_2d[:len(pos_prototypes)]
+        neg_2d = prototypes_2d[len(pos_prototypes):]
+        
+        # 创建图形
+        plt.figure(figsize=(10, 8))
+        
+        # 绘制正原型（用蓝色圆点表示）
+        plt.scatter(pos_2d[:, 0], pos_2d[:, 1], c='blue', label='Positive Prototypes', alpha=0.7, s=100)
+        
+        # 绘制负原型（用红色叉号表示）
+        plt.scatter(neg_2d[:, 0], neg_2d[:, 1], c='red', label='Negative Prototypes', alpha=0.7, marker='x', s=100)
+        
+        # 添加标题和标签
+        plt.title('Visualization of Value Alignment Prototypes\n(PCA 2D Projection)', fontsize=14)
+        plt.xlabel('Principal Component 1')
+        plt.ylabel('Principal Component 2')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        # 保存或显示图形
+        if save_path:
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            print(f"原型可视化图已保存到: {save_path}")
+        else:
+            plt.show()
+        
+        print(f"PCA Explained Variance Ratio: {pca.explained_variance_ratio_}")
+        print(f"Total Variance Explained: {sum(pca.explained_variance_ratio_):.2f}")
+    
+    def evaluate_prototype_quality(self):
+        """
+        评估原型构建的质量
+        评估指标包括：
+        1. 正负原型之间的分离度
+        2. 正负原型内部的聚类质量
+        """
+        if not self.prototypes or 'positive_prototypes' not in self.prototypes:
+            print("没有找到原型数据，请先构建原型空间")
+            return None
+        
+        pos_prototypes = self.prototypes['positive_prototypes']
+        neg_prototypes = self.prototypes['negative_prototypes']
+        
+        print("正在评估原型构建质量...")
+        
+        # 1. 计算正负原型之间的分离度
+        # 计算正原型和负原型的中心点
+        pos_center = np.mean(pos_prototypes, axis=0)
+        neg_center = np.mean(neg_prototypes, axis=0)
+        
+        # 计算正负原型中心之间的欧氏距离
+        center_distance = np.linalg.norm(pos_center - neg_center)
+        
+        # 计算正负原型中心之间的余弦相似度
+        cos_sim = cosine_similarity([pos_center], [neg_center])[0][0]
+        
+        # 2. 计算正负原型内部的聚类质量
+        # 计算正原型到其中心的平均距离
+        pos_distances = [np.linalg.norm(proto - pos_center) for proto in pos_prototypes]
+        avg_pos_intra_distance = np.mean(pos_distances)
+        
+        # 计算负原型到其中心的平均距离
+        neg_distances = [np.linalg.norm(proto - neg_center) for proto in neg_prototypes]
+        avg_neg_intra_distance = np.mean(neg_distances)
+        
+        # 3. 计算分离度与内部凝聚度的比率（越大越好）
+        if avg_pos_intra_distance == 0 or avg_neg_intra_distance == 0:
+            separation_to_cohesion_ratio = float('inf')
+        else:
+            avg_intra_distance = (avg_pos_intra_distance + avg_neg_intra_distance) / 2
+            separation_to_cohesion_ratio = center_distance / avg_intra_distance
+        
+        # 4. 计算整体聚类的轮廓系数
+        from sklearn.metrics import silhouette_score
+        all_prototypes = np.vstack([pos_prototypes, neg_prototypes])
+        labels = [0] * len(pos_prototypes) + [1] * len(neg_prototypes)
+        silhouette_avg = silhouette_score(all_prototypes, labels)
+        
+        quality_metrics = {
+            'center_distance': center_distance,  # 中心距离
+            'cosine_similarity': cos_sim,  # 中心余弦相似度
+            'avg_pos_intra_distance': avg_pos_intra_distance,  # 正原型内部平均距离
+            'avg_neg_intra_distance': avg_neg_intra_distance,  # 负原型内部平均距离
+            'separation_to_cohesion_ratio': separation_to_cohesion_ratio,  # 分离度与凝聚度比率
+            'silhouette_score': silhouette_avg  # 轮廓系数
+        }
+        
+        print("\n原型构建质量评估结果:")
+        print(f"正负原型中心距离: {center_distance:.4f}")
+        print(f"正负原型中心余弦相似度: {cos_sim:.4f}")
+        print(f"正原型内部平均距离: {avg_pos_intra_distance:.4f}")
+        print(f"负原型内部平均距离: {avg_neg_intra_distance:.4f}")
+        print(f"分离度与凝聚度比率: {separation_to_cohesion_ratio:.4f}")
+        print(f"轮廓系数: {silhouette_avg:.4f}")
+        
+        print("\n质量评估说明:")
+        print("- 中心距离越大，表示正负原型分离越明显")
+        print("- 余弦相似度越小(越负)，表示正负原型差异越大")
+        print("- 内部平均距离越小，表示原型内部越凝聚")
+        print("- 分离度与凝聚度比率越大，表示原型质量越高")
+        print("- 轮廓系数越接近1，表示聚类效果越好")
+        
+        return quality_metrics
 
-def get_prototype_vectors(csv_path: str, model_name: str = "t5-small", 
+
+def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b", 
                          n_positive_clusters: int = 5, n_negative_clusters: int = 5,
                          save_path: str = None) -> Dict:
     """
@@ -304,18 +438,35 @@ def get_prototype_vectors(csv_path: str, model_name: str = "t5-small",
 
 if __name__ == "__main__":
     # 示例：使用achievement_context_controlled.csv构建原型向量库
-    csv_path = "d:/code/Python/value-alignment-prototype/data/controlled/achievement_context_controlled.csv"
-    save_path = "d:/code/Python/value-alignment-prototype/prototypes"
+    # 构建相对于当前脚本文件的路径
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    csv_path = os.path.join(script_dir, "..", "..", "data", "controlled", "achievement_context_controlled.csv")
+    save_path = os.path.join(script_dir, "prototypes")
     
     print("开始构建原型向量库...")
-    prototypes = get_prototype_vectors(
-        csv_path=csv_path,
-        model_name="t5-small",
-        n_positive_clusters=5,
-        n_negative_clusters=5,
-        save_path=save_path
-    )
+    
+    # 加载T5模型
+    print(f"加载模型: t5-3b")
+    model = T5Model("t5-3b")
+    
+    # 创建原型学习器并构建原型空间
+    learner = PrototypeLearner(model, csv_path)
+    prototypes = learner.build_prototype_space(5, 5)  # 5个正样本聚类，5个负样本聚类
+    
+    # 保存原型
+    learner.save_prototypes(save_path)
     
     print("原型向量库构建完成！")
     print(f"正原型数量: {prototypes['positive_count']}")
     print(f"负原型数量: {prototypes['negative_count']}")
+    
+    # 评估原型质量
+    print("\n开始评估原型构建质量...")
+    quality_metrics = learner.evaluate_prototype_quality()
+    
+    # 可视化原型
+    print("开始可视化原型...")
+    
+    # 生成可视化图
+    vis_save_path = os.path.join(script_dir, "prototypes", "prototype_visualization.png")
+    learner.visualize_prototypes(save_path=vis_save_path)

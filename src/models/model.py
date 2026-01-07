@@ -1,7 +1,8 @@
+import os
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+
 import torch
 from transformers import T5ForConditionalGeneration, T5Tokenizer, T5EncoderModel
-import os
-
 
 class T5Model:
     """
@@ -18,8 +19,6 @@ class T5Model:
         """
         self.model_name = model_name
         self.model_dir = model_dir
-        
-        print(f"正在下载并加载预训练T5模型: {model_name}")
         
         # 加载预训练的T5模型和分词器
         self.model = T5ForConditionalGeneration.from_pretrained(
@@ -156,6 +155,6 @@ if __name__ == "__main__":
     # 示例：下载并使用t5-small模型
     print("开始下载预训练T5模型...")
     
-    # 下载t5-small模型
-    model = download_pretrained_t5("t5-small")
+    # 下载t5-3b模型
+    model = download_pretrained_t5("t5-3b")
     print("下载完成...")
