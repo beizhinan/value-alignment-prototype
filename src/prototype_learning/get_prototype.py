@@ -9,6 +9,8 @@ import torch
 from typing import List, Tuple, Dict
 import os
 import warnings
+import re
+import json
 warnings.filterwarnings('ignore')
 
 # 修改导入方式，使用相对路径导入
@@ -36,10 +38,30 @@ class PrototypeLearner:
         self.data = None
         self.positive_vectors = None
         self.negative_vectors = None
+        self.positive_cluster_labels = None
+        self.negative_cluster_labels = None
         self.prototypes = {}
+        
+        # 从CSV路径中提取价值观名称
+        self.value_name = self._extract_value_name(csv_path)
+        print(f"检测到价值观名称: {self.value_name}")
         
         # 读取CSV数据
         self._load_data()
+    
+    def _extract_value_name(self, csv_path: str) -> str:
+        """
+        从CSV文件路径中提取价值观名称
+        例如: achievement_context_controlled.csv -> achievement
+        """
+        filename = os.path.basename(csv_path)
+        # 使用正则表达式提取价值观名称（第一个下划线前的部分）
+        match = re.match(r'^([a-zA-Z]+)_', filename)
+        if match:
+            return match.group(1)
+        else:
+            # 如果无法从文件名中提取，使用默认名称
+            return "default_value"
         
     def _load_data(self):
         """
@@ -153,16 +175,17 @@ class PrototypeLearner:
         print("对比学习完成")
         return refined_pos_vectors, refined_neg_vectors
     
-    def cluster_vectors(self, vectors: np.ndarray, n_clusters: int = None) -> np.ndarray:
+    def cluster_vectors(self, vectors: np.ndarray, n_clusters: int = None, texts: List[str] = None) -> Tuple[np.ndarray, np.ndarray]:
         """
         对向量进行层次聚类分析
         
         Args:
             vectors: 待聚类的向量
             n_clusters: 聚类数量，如果为None则自动确定
+            texts: 对应的文本列表，用于后续分析
             
         Returns:
-            np.ndarray: 每个聚类的质心向量
+            Tuple[np.ndarray, np.ndarray]: 每个聚类的质心向量和聚类标签
         """
         print(f"开始对{len(vectors)}个向量进行聚类...")
         
@@ -188,7 +211,7 @@ class PrototypeLearner:
                 centroids.append(centroid)
         
         print(f"聚类完成，共{len(centroids)}个聚类中心")
-        return np.array(centroids)
+        return np.array(centroids), cluster_labels
     
     def build_prototype_space(self, n_positive_clusters: int = 5, n_negative_clusters: int = 5) -> Dict:
         """
@@ -219,9 +242,11 @@ class PrototypeLearner:
             self.negative_vectors
         )
         
-        # 对正负样本向量进行聚类
-        positive_prototypes = self.cluster_vectors(self.positive_vectors, n_positive_clusters)
-        negative_prototypes = self.cluster_vectors(self.negative_vectors, n_negative_clusters)
+        # 对正负样本向量进行聚类，同时获取聚类标签
+        positive_prototypes, self.positive_cluster_labels = self.cluster_vectors(
+            self.positive_vectors, n_positive_clusters, positive_texts)
+        negative_prototypes, self.negative_cluster_labels = self.cluster_vectors(
+            self.negative_vectors, n_negative_clusters, negative_texts)
         
         # 构建原型空间
         self.prototypes = {
@@ -239,28 +264,93 @@ class PrototypeLearner:
     
     def save_prototypes(self, save_path: str):
         """
-        保存原型向量到文件
+        保存原型向量到文件，使用价值观名称创建子目录
+        """
+        # 使用价值观名称创建子目录
+        value_dir = os.path.join(save_path, self.value_name)
+        os.makedirs(value_dir, exist_ok=True)
+        
+        # 保存正负原型
+        positive_path = os.path.join(value_dir, f'{self.value_name}_positive_prototypes.npy')
+        negative_path = os.path.join(value_dir, f'{self.value_name}_negative_prototypes.npy')
+        np.save(positive_path, self.prototypes['positive_prototypes'])
+        np.save(negative_path, self.prototypes['negative_prototypes'])
+        
+        print(f"原型已保存到: {value_dir}")
+    
+    def save_cluster_assignments(self, save_path: str):
+        """
+        保存聚类分配情况，包括每个聚类群对应的样本ID
         
         Args:
             save_path: 保存路径
         """
-        os.makedirs(save_path, exist_ok=True)
+        if self.positive_cluster_labels is None or self.negative_cluster_labels is None:
+            print("没有找到聚类标签数据，请先构建原型空间")
+            return
         
-        # 保存正负原型
-        np.save(os.path.join(save_path, 'positive_prototypes.npy'), self.prototypes['positive_prototypes'])
-        np.save(os.path.join(save_path, 'negative_prototypes.npy'), self.prototypes['negative_prototypes'])
+        # 使用价值观名称创建子目录
+        value_dir = os.path.join(save_path, self.value_name)
+        os.makedirs(value_dir, exist_ok=True)
         
-        print(f"原型已保存到: {save_path}")
-    
+        # 获取数据ID列，如果不存在则使用索引
+        if 'id' in self.data.columns:
+            ids = self.data['id'].tolist()
+        else:
+            ids = list(range(len(self.data)))
+        
+        # 构建聚类分配字典
+        cluster_assignments = {
+            'value_type': self.value_name,
+            'positive_clusters': {},
+            'negative_clusters': {}
+        }
+        
+        # 正样本聚类分配
+        for idx, cluster_id in enumerate(self.positive_cluster_labels):
+            cluster_key = f'cluster_{cluster_id}'
+            if cluster_key not in cluster_assignments['positive_clusters']:
+                cluster_assignments['positive_clusters'][cluster_key] = []
+            cluster_assignments['positive_clusters'][cluster_key].append({
+                'sample_id': ids[idx],
+                'text': self.data.iloc[idx]['question_1'] if 'question_1' in self.data.columns else f"Sample {ids[idx]}"
+            })
+        
+        # 负样本聚类分配
+        for idx, cluster_id in enumerate(self.negative_cluster_labels):
+            cluster_key = f'cluster_{cluster_id}'
+            if cluster_key not in cluster_assignments['negative_clusters']:
+                cluster_assignments['negative_clusters'][cluster_key] = []
+            cluster_assignments['negative_clusters'][cluster_key].append({
+                'sample_id': ids[idx],
+                'text': self.data.iloc[idx]['question_2'] if 'question_2' in self.data.columns else f"Sample {ids[idx]}"
+            })
+        
+        # 保存聚类分配情况
+        cluster_path = os.path.join(value_dir, f'{self.value_name}_cluster_assignments.json')
+        with open(cluster_path, 'w', encoding='utf-8') as f:
+            json.dump(cluster_assignments, f, ensure_ascii=False, indent=2)
+        
+        print(f"聚类分配情况已保存到: {cluster_path}")
+        
+        # 打印聚类统计信息
+        print(f"\n聚类统计信息:")
+        print(f"正样本聚类数: {len(cluster_assignments['positive_clusters'])}")
+        for cluster_key, samples in cluster_assignments['positive_clusters'].items():
+            print(f"  {cluster_key}: {len(samples)} 个样本")
+        
+        print(f"负样本聚类数: {len(cluster_assignments['negative_clusters'])}")
+        for cluster_key, samples in cluster_assignments['negative_clusters'].items():
+            print(f"  {cluster_key}: {len(samples)} 个样本")
+
     def load_prototypes(self, load_path: str):
         """
-        从文件加载原型向量
-        
-        Args:
-            load_path: 加载路径
+        从文件加载原型向量，使用价值观名称的子目录
         """
-        positive_path = os.path.join(load_path, 'positive_prototypes.npy')
-        negative_path = os.path.join(load_path, 'negative_prototypes.npy')
+        # 使用价值观名称确定子目录
+        value_dir = os.path.join(load_path, self.value_name)
+        positive_path = os.path.join(value_dir, f'{self.value_name}_positive_prototypes.npy')
+        negative_path = os.path.join(value_dir, f'{self.value_name}_negative_prototypes.npy')
         
         if os.path.exists(positive_path) and os.path.exists(negative_path):
             self.prototypes['positive_prototypes'] = np.load(positive_path)
@@ -268,17 +358,14 @@ class PrototypeLearner:
             self.prototypes['positive_count'] = len(self.prototypes['positive_prototypes'])
             self.prototypes['negative_count'] = len(self.prototypes['negative_prototypes'])
             
-            print(f"原型已从 {load_path} 加载")
+            print(f"原型已从 {value_dir} 加载")
         else:
-            print(f"找不到原型文件: {load_path}")
+            print(f"找不到原型文件: {value_dir}")
 
     def visualize_prototypes(self, save_path: str = None):
         """
         可视化原型向量
-        使用PCA将高维向量降到2D进行可视化
-        
-        Args:
-            save_path: 保存可视化图片的路径，如果为None则直接显示
+        使用PCA将高维向量降到2D进行可视化，并使用价值观名称命名
         """
         if not self.prototypes or 'positive_prototypes' not in self.prototypes:
             print("没有找到原型数据，请先构建原型空间")
@@ -309,16 +396,23 @@ class PrototypeLearner:
         plt.scatter(neg_2d[:, 0], neg_2d[:, 1], c='red', label='Negative Prototypes', alpha=0.7, marker='x', s=100)
         
         # 添加标题和标签
-        plt.title('Visualization of Value Alignment Prototypes\n(PCA 2D Projection)', fontsize=14)
+        plt.title(f'Visualization of {self.value_name.capitalize()} Value Alignment Prototypes\n(PCA 2D Projection)', fontsize=14)
         plt.xlabel('Principal Component 1')
         plt.ylabel('Principal Component 2')
         plt.legend()
         plt.grid(True, alpha=0.3)
         
-        # 保存或显示图形
+        # 如果提供了保存路径，则使用价值观名称创建子目录并命名文件
         if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches='tight')
-            print(f"原型可视化图已保存到: {save_path}")
+            # 使用价值观名称创建子目录
+            value_dir = os.path.dirname(save_path)
+            value_subdir = os.path.join(value_dir, self.value_name)
+            os.makedirs(value_subdir, exist_ok=True)
+            
+            # 生成使用价值观名称的可视化图
+            vis_path = os.path.join(value_subdir, f'{self.value_name}_prototype_visualization.png')
+            plt.savefig(vis_path, dpi=300, bbox_inches='tight')
+            print(f"原型可视化图已保存到: {vis_path}")
         else:
             plt.show()
         
@@ -398,7 +492,65 @@ class PrototypeLearner:
         print("- 分离度与凝聚度比率越大，表示原型质量越高")
         print("- 轮廓系数越接近1，表示聚类效果越好")
         
-        return quality_metrics
+        # 计算标准化的原型质量得分
+        normalized_score = self._calculate_normalized_quality_score(quality_metrics)
+        print(f"\n原型质量最终指标: {normalized_score:.4f}")
+        
+        return quality_metrics, normalized_score
+
+    def _calculate_normalized_quality_score(self, metrics: Dict) -> float:
+        """
+        计算标准化的原型质量得分，将每个指标转换为0-1得分并加权
+        
+        Args:
+            metrics: 包含质量评估指标的字典
+            
+        Returns:
+            float: 0-1范围内的最终质量得分
+        """
+        # 指标权重设置
+        weights = {
+            'center_distance': 0.25,    # 中心距离权重
+            'cosine_similarity': 0.25,  # 余弦相似度权重（负相关，需取反）
+            'avg_pos_intra_distance': 0.15,  # 正原型内部距离权重（负相关）
+            'avg_neg_intra_distance': 0.15,  # 负原型内部距离权重（负相关）
+            'silhouette_score': 0.20    # 轮廓系数权重
+        }
+        
+        # 归一化参数（基于典型值范围）
+        max_center_distance = 5.0  # 假设最大中心距离
+        max_intra_distance = 2.0   # 假设最大内部距离
+        max_silhouette = 1.0       # 轮廓系数最大值
+        
+        # 计算各指标的0-1标准化得分
+        # 中心距离：越大越好，直接归一化
+        center_distance_score = min(metrics['center_distance'] / max_center_distance, 1.0)
+        
+        # 余弦相似度：越小越好（负值更佳），转换为正值后取反归一化
+        # cos_sim越负越好，所以计算为 (1 - cos_sim)/2，将其映射到0-1范围
+        cos_sim_score = (1 - metrics['cosine_similarity']) / 2.0
+        cos_sim_score = max(0.0, min(cos_sim_score, 1.0))  # 确保在0-1范围内
+        
+        # 正原型内部距离：越小越好，取倒数或线性转换
+        avg_pos_intra_score = max(0.0, min(1.0 - metrics['avg_pos_intra_distance'] / max_intra_distance, 1.0))
+        
+        # 负原型内部距离：越小越好，取倒数或线性转换
+        avg_neg_intra_score = max(0.0, min(1.0 - metrics['avg_neg_intra_distance'] / max_intra_distance, 1.0))
+        
+        # 轮廓系数：越大越好，取绝对值并归一化
+        silhouette_score = (metrics['silhouette_score'] + 1) / 2  # 将[-1,1]映射到[0,1]
+        
+        # 计算加权总分
+        # 注意：内部距离只计算一次，所以平均它们的得分
+        total_score = (
+            weights['center_distance'] * center_distance_score +
+            weights['cosine_similarity'] * cos_sim_score +
+            (weights['avg_pos_intra_distance'] + weights['avg_neg_intra_distance']) / 2 * 
+            (avg_pos_intra_score + avg_neg_intra_score) / 2 +
+            weights['silhouette_score'] * silhouette_score
+        )
+        
+        return total_score
 
 
 def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b", 
@@ -432,6 +584,8 @@ def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b",
     # 如果提供了保存路径，则保存原型
     if save_path:
         learner.save_prototypes(save_path)
+        # 同时保存聚类分配情况
+        learner.save_cluster_assignments(save_path)
     
     return prototypes
 
@@ -456,6 +610,9 @@ if __name__ == "__main__":
     # 保存原型
     learner.save_prototypes(save_path)
     
+    # 保存聚类分配情况
+    learner.save_cluster_assignments(save_path)
+    
     print("原型向量库构建完成！")
     print(f"正原型数量: {prototypes['positive_count']}")
     print(f"负原型数量: {prototypes['negative_count']}")
@@ -467,6 +624,5 @@ if __name__ == "__main__":
     # 可视化原型
     print("开始可视化原型...")
     
-    # 生成可视化图
-    vis_save_path = os.path.join(script_dir, "prototypes", "prototype_visualization.png")
-    learner.visualize_prototypes(save_path=vis_save_path)
+    # 生成可视化图（使用价值观子目录保存）
+    learner.visualize_prototypes(save_path=os.path.join(script_dir, "prototypes", "visualization.png"))
