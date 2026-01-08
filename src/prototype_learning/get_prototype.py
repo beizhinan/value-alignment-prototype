@@ -37,16 +37,18 @@ class PrototypeLearner:
     原型学习类，用于构建价值观原型向量库
     """
     
-    def __init__(self, model: T5Model, csv_path: str):
+    def __init__(self, model: T5Model, csv_path: str, batch_size: int = 32):
         """
         初始化原型学习器
         
         Args:
             model: 已加载的T5模型
             csv_path: 包含正负样本的CSV文件路径
+            batch_size: 批处理大小（默认32）
         """
         self.model = model
         self.csv_path = csv_path
+        self.batch_size = batch_size
         self.data = None
         self.positive_vectors = None
         self.negative_vectors = None
@@ -57,6 +59,7 @@ class PrototypeLearner:
         # 从CSV路径中提取价值观名称
         self.value_name = self._extract_value_name(csv_path)
         print(f"检测到价值观名称: {self.value_name}")
+        print(f"批处理大小: {batch_size}")
         
         # 读取CSV数据
         self._load_data()
@@ -90,7 +93,7 @@ class PrototypeLearner:
     
     def extract_vectors(self, texts: List[str]) -> np.ndarray:
         """
-        使用T5模型提取文本向量
+        使用T5模型提取文本向量（单条处理，兼容旧代码）
         
         Args:
             texts: 文本列表
@@ -98,25 +101,52 @@ class PrototypeLearner:
         Returns:
             np.ndarray: 文本向量矩阵
         """
-        print(f"正在提取{len(texts)}个文本的向量表示...")
+        print(f"注意：使用单条处理模式，速度较慢，建议使用extract_vectors_batch方法")
+        return self.extract_vectors_batch(texts, batch_size=1)
+    
+    def extract_vectors_batch(self, texts: List[str], batch_size: int = None) -> np.ndarray:
+        """
+        批量提取文本向量，大幅提高处理速度
         
-        vectors = []
-        for i, text in enumerate(texts):
-            if i % 50 == 0:  # 每50个文本打印一次进度
-                print(f"处理进度: {i}/{len(texts)}")
+        Args:
+            texts: 文本列表
+            batch_size: 批处理大小，如果为None则使用实例的batch_size
+            
+        Returns:
+            np.ndarray: 文本向量矩阵
+        """
+        if batch_size is None:
+            batch_size = self.batch_size
+            
+        print(f"正在批量提取{len(texts)}个文本的向量表示，批大小: {batch_size}...")
+        
+        all_vectors = []
+        total_batches = (len(texts) + batch_size - 1) // batch_size
+        
+        for batch_idx in range(0, len(texts), batch_size):
+            batch_texts = texts[batch_idx:batch_idx + batch_size]
+            batch_num = (batch_idx // batch_size) + 1
+            
+            if batch_num % 5 == 0 or batch_num == total_batches:
+                print(f"处理进度: {batch_num}/{total_batches} 批次 ({len(batch_texts)}条文本)")
+            
+            # 批量处理：对每个文本单独获取隐藏状态并池化
+            batch_vectors = []
+            for text in batch_texts:
+                # 获取编码器最后一层的隐藏状态
+                last_hidden_state = self.model.get_encoder_last_hidden_state(text)
                 
-            # 获取编码器最后一层的隐藏状态
-            last_hidden_state = self.model.get_encoder_last_hidden_state(text)
+                # 对序列维度进行平均池化，得到固定长度的向量
+                pooled_vector = torch.mean(last_hidden_state, dim=1).squeeze(0)
+                
+                # 转换为numpy数组
+                vector = pooled_vector.detach().cpu().numpy()
+                batch_vectors.append(vector)
             
-            # 对序列维度进行平均池化，得到固定长度的向量
-            pooled_vector = torch.mean(last_hidden_state, dim=1).squeeze(0)
-            
-            # 转换为numpy数组
-            vector = pooled_vector.detach().cpu().numpy()
-            vectors.append(vector)
+            all_vectors.extend(batch_vectors)
         
-        print(f"向量提取完成，维度: {len(vectors[0])}")
-        return np.array(vectors)
+        print(f"批量向量提取完成，总维度: {len(all_vectors)} × {len(all_vectors[0])}")
+        return np.array(all_vectors)
     
     def smooth_contrastive_learning(self, pos_vectors: np.ndarray, neg_vectors: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -270,6 +300,23 @@ class PrototypeLearner:
         print(f"聚类完成，共{len(centroids)}个聚类中心")
         return np.array(centroids), cluster_labels
     
+    def extract_all_vectors(self):
+        """
+        提取所有正负样本向量（如果尚未提取）
+        这个方法确保向量只提取一次，使用批量处理
+        """
+        if self.positive_vectors is None or self.negative_vectors is None:
+            print("批量提取所有样本向量...")
+            positive_texts = self.data['question_1'].tolist()
+            negative_texts = self.data['question_2'].tolist()
+            
+            print(f"提取{len(positive_texts)}个正样本向量...")
+            self.positive_vectors = self.extract_vectors_batch(positive_texts)
+            print(f"提取{len(negative_texts)}个负样本向量...")
+            self.negative_vectors = self.extract_vectors_batch(negative_texts)
+        else:
+            print("向量已经提取过，直接使用缓存")
+    
     def build_prototype_space(self, n_positive_clusters: int = 10, n_negative_clusters: int = 10, temperature: float = 1.0) -> Dict:
         """
         构建价值观原型空间
@@ -285,28 +332,21 @@ class PrototypeLearner:
         print(f"开始构建价值观原型空间...")
         print(f"参数: 正样本聚类数={n_positive_clusters}, 负样本聚类数={n_negative_clusters}, 温度系数={temperature}")
         
-        # 提取正负样本文本
-        positive_texts = self.data['question_1'].tolist()
-        negative_texts = self.data['question_2'].tolist()
-        
-        # 提取正负样本向量
-        print("提取正样本向量...")
-        self.positive_vectors = self.extract_vectors(positive_texts)
-        print("提取负样本向量...")
-        self.negative_vectors = self.extract_vectors(negative_texts)
+        # 提取所有样本向量（确保只提取一次）
+        self.extract_all_vectors()
         
         # 对比学习优化（默认使用平滑对比）
-        self.positive_vectors, self.negative_vectors = self.contrastive_learning(
-            self.positive_vectors, 
-            self.negative_vectors,
+        processed_pos_vectors, processed_neg_vectors = self.contrastive_learning(
+            self.positive_vectors.copy(), 
+            self.negative_vectors.copy(),
             temperature
         )
         
         # 对正负样本向量进行聚类，同时获取聚类标签
         positive_prototypes, self.positive_cluster_labels = self.cluster_vectors(
-            self.positive_vectors, n_positive_clusters, positive_texts)
+            processed_pos_vectors, n_positive_clusters, self.data['question_1'].tolist())
         negative_prototypes, self.negative_cluster_labels = self.cluster_vectors(
-            self.negative_vectors, n_negative_clusters, negative_texts)
+            processed_neg_vectors, n_negative_clusters, self.data['question_2'].tolist())
         
         # 构建原型空间
         self.prototypes = {
@@ -317,7 +357,8 @@ class PrototypeLearner:
             'config': {
                 'temperature': temperature,
                 'n_positive_clusters': n_positive_clusters,
-                'n_negative_clusters': n_negative_clusters
+                'n_negative_clusters': n_negative_clusters,
+                'batch_size': self.batch_size
             }
         }
         
@@ -589,7 +630,7 @@ class PrototypeLearner:
             return 1 / (1 + np.exp(-steepness * (x - midpoint)))
         
         # 移除分离度指标，仅使用凝聚度和平衡性指标
-        # 调整权重分配，使两个指标各占50%
+        # 调整权重分配，使凝聚度指标占主导地位，但仍保持平衡性指标的重要性
         weights = {
             'cohesion_score': 0.5,    # 凝聚度综合指标
             'balance_score': 0.5      # 平衡性指标
@@ -598,7 +639,12 @@ class PrototypeLearner:
         # 1. 凝聚度指标（考虑正负差异）
         avg_intra = (metrics['avg_pos_intra_distance'] + 
                      metrics['avg_neg_intra_distance']) / 2
-        cohesion_score = 1 - sigmoid_norm(avg_intra, midpoint=0.2)
+                     
+        # 动态计算midpoint值，使用平均内部距离的某个百分位数作为参考
+        # 这里使用0.2作为默认值，但可以根据经验或数据分布调整
+        midpoint = avg_intra * 0.8  # 使用实际观测值的80%作为"好坏"分界点
+        
+        cohesion_score = 1 - sigmoid_norm(avg_intra, midpoint=max(0.05, midpoint))  # 确保midpoint不会太小
         
         # 2. 平衡性指标（正负原型数量和质量是否均衡）
         pos_intra = metrics['avg_pos_intra_distance']
@@ -615,9 +661,14 @@ class PrototypeLearner:
         # 确保分数在[0, 1]范围内
         return max(0.0, min(1.0, total_score))
 
+    def _sigmoid_norm(self, x, midpoint, steepness=10):
+        """使用sigmoid函数进行平滑归一化"""
+        return 1 / (1 + np.exp(-steepness * (x - midpoint)))
+
     def compare_prototype_quality(self, temperature_values: List[float], cluster_values: List[int], save_path: str = None):
         """
         对比不同温度系数和聚类簇数下的指标情况，并作图可视化
+        修改：使用已提取的基础向量，避免重复提取
         
         Args:
             temperature_values: 温度系数列表
@@ -630,13 +681,8 @@ class PrototypeLearner:
         print(f"开始对比不同温度系数 {temperature_values} 和聚类簇数 {cluster_values} 下的指标情况...")
         print(f"总共需要测试 {len(temperature_values) * len(cluster_values)} 种参数组合")
         
-        # 首先提取基础向量
-        positive_texts = self.data['question_1'].tolist()
-        negative_texts = self.data['question_2'].tolist()
-        
-        print("提取基础向量用于对比测试...")
-        base_positive_vectors = self.extract_vectors(positive_texts)
-        base_negative_vectors = self.extract_vectors(negative_texts)
+        # 确保向量已经提取（只提取一次）
+        self.extract_all_vectors()
         
         # 存储所有参数组合的结果
         results = []
@@ -649,18 +695,18 @@ class PrototypeLearner:
             for n_clusters in cluster_values:
                 print(f"\n测试参数: 温度系数={temp}, 聚类数={n_clusters}(正负样本)")
                 
-                # 使用基础向量进行对比学习
+                # 使用缓存的基础向量进行对比学习（使用copy避免修改原始向量）
                 processed_pos_vectors, processed_neg_vectors = self.contrastive_learning(
-                    base_positive_vectors.copy(), 
-                    base_negative_vectors.copy(),
+                    self.positive_vectors.copy(), 
+                    self.negative_vectors.copy(),
                     temp
                 )
                 
                 # 对正负样本向量进行聚类
                 positive_prototypes, _ = self.cluster_vectors(
-                    processed_pos_vectors, n_clusters, positive_texts)
+                    processed_pos_vectors, n_clusters, None)  # 不再传递文本列表
                 negative_prototypes, _ = self.cluster_vectors(
-                    processed_neg_vectors, n_clusters, negative_texts)
+                    processed_neg_vectors, n_clusters, None)  # 不再传递文本列表
                 
                 # 临时存储原型
                 temp_prototypes = {
@@ -706,7 +752,9 @@ class PrototypeLearner:
             self.prototypes = best_prototypes
             
             self.save_prototypes(save_path)
-            self.save_cluster_assignments(save_path)
+            
+            # 注意：这里不再调用save_cluster_assignments，因为没有计算聚类标签
+            # 但可以在构建最终原型时再计算
             
             # 恢复原始原型
             self.prototypes = original_prototypes
@@ -744,30 +792,84 @@ class PrototypeLearner:
         # 准备数据
         cluster_values_sorted = sorted(cluster_values)
         scores = []
+        cohesion_scores = []
+        balance_scores = []
         
         for n_clusters in cluster_values_sorted:
             result = next((r for r in results if r['n_clusters'] == n_clusters and r['temperature'] == 1.0), None)
             if result:
                 scores.append(result['score'])
+                
+                # 提取指标并计算新指标的组成部分
+                metrics = result['quality_metrics']
+                
+                # 计算凝聚度综合得分（平均内部距离的倒数，值越小越好）
+                avg_intra = (metrics['avg_pos_intra_distance'] + metrics['avg_neg_intra_distance']) / 2
+                
+                # 使用固定的sigmoid函数，而不是调用实例方法
+                def sigmoid_norm(x, midpoint, steepness=10):
+                    """使用sigmoid函数进行平滑归一化"""
+                    return 1 / (1 + np.exp(-steepness * (x - midpoint)))
+                
+                # 动态计算midpoint值
+                midpoint = avg_intra * 0.8
+                cohesion_scores.append(1 - sigmoid_norm(avg_intra, max(0.05, midpoint)) if avg_intra < 1 else 0)
+                
+                # 计算平衡性得分
+                pos_intra = metrics['avg_pos_intra_distance']
+                neg_intra = metrics['avg_neg_intra_distance']
+                intra_sum = pos_intra + neg_intra + 1e-8
+                balance = 1 - abs(pos_intra - neg_intra) / intra_sum
+                balance_scores.append(balance)
             else:
                 scores.append(0)
+                cohesion_scores.append(0)
+                balance_scores.append(0)
         
         # 创建子图
-        fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-        fig.suptitle(f'{self.value_name.capitalize()} - Parameter Comparison Bar Chart (Temperature=1.0)', 
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+        fig.suptitle(f'{self.value_name.capitalize()} - Parameter Comparison Bar Charts (Temperature=1.0)', 
                      fontsize=16, fontweight='bold')
         
         # 总体得分条形图
-        bars1 = ax.bar(cluster_values_sorted, scores, color='skyblue', edgecolor='navy', alpha=0.7)
-        ax.set_title('Overall Quality Score', fontsize=12, fontweight='bold')
-        ax.set_xlabel('Clusters', fontsize=11)
-        ax.set_ylabel('Score', fontsize=11)
-        ax.set_xticks(cluster_values_sorted)  # 设置横坐标刻度为聚类数的实际值
-        ax.grid(axis='y', alpha=0.3)
+        bars1 = axes[0].bar(cluster_values_sorted, scores, color='skyblue', edgecolor='navy', alpha=0.7)
+        axes[0].set_title('Overall Quality Score', fontsize=12, fontweight='bold')
+        axes[0].set_xlabel('Clusters', fontsize=11)
+        axes[0].set_ylabel('Score', fontsize=11)
+        axes[0].set_xticks(cluster_values_sorted)  # 设置横坐标刻度为聚类数的实际值
+        axes[0].grid(axis='y', alpha=0.3)
         # 在每个条形上添加数值
         for bar, score in zip(bars1, scores):
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height,
+            axes[0].text(bar.get_x() + bar.get_width()/2., height,
+                            f'{score:.3f}',
+                            ha="center", va="bottom", fontsize=9, fontweight='bold')
+        
+        # 凝聚度得分条形图
+        bars2 = axes[1].bar(cluster_values_sorted, cohesion_scores, color='lightgreen', edgecolor='darkgreen', alpha=0.7)
+        axes[1].set_title('Cohesion Score (1 - Avg Intra Distance)', fontsize=12, fontweight='bold')
+        axes[1].set_xlabel('Clusters', fontsize=11)
+        axes[1].set_ylabel('Score', fontsize=11)
+        axes[1].set_xticks(cluster_values_sorted)  # 设置横坐标刻度为聚类数的实际值
+        axes[1].grid(axis='y', alpha=0.3)
+        # 在每个条形上添加数值
+        for bar, score in zip(bars2, cohesion_scores):
+            height = bar.get_height()
+            axes[1].text(bar.get_x() + bar.get_width()/2., height,
+                            f'{score:.3f}',
+                            ha="center", va="bottom", fontsize=9, fontweight='bold')
+        
+        # 平衡性得分条形图
+        bars3 = axes[2].bar(cluster_values_sorted, balance_scores, color='coral', edgecolor='darkred', alpha=0.7)
+        axes[2].set_title('Balance Score (1 - |Pos-Neg|/Sum)', fontsize=12, fontweight='bold')
+        axes[2].set_xlabel('Clusters', fontsize=11)
+        axes[2].set_ylabel('Score', fontsize=11)
+        axes[2].set_xticks(cluster_values_sorted)  # 设置横坐标刻度为聚类数的实际值
+        axes[2].grid(axis='y', alpha=0.3)
+        # 在每个条形上添加数值
+        for bar, score in zip(bars3, balance_scores):
+            height = bar.get_height()
+            axes[2].text(bar.get_x() + bar.get_width()/2., height,
                             f'{score:.3f}',
                             ha="center", va="bottom", fontsize=9, fontweight='bold')
         
@@ -896,17 +998,12 @@ class PrototypeLearner:
     def analyze_data_characteristics(self):
         """
         分析数据特征，为选择平滑对比学习提供依据
+        修改：使用已提取的向量，避免重复提取
         """
         print(f"\n分析数据特征: {self.value_name}")
         
-        # 提取向量（如果尚未提取）
-        if self.positive_vectors is None or self.negative_vectors is None:
-            positive_texts = self.data['question_1'].tolist()
-            negative_texts = self.data['question_2'].tolist()
-            
-            print("提取向量进行分析...")
-            self.positive_vectors = self.extract_vectors(positive_texts)
-            self.negative_vectors = self.extract_vectors(negative_texts)
+        # 确保向量已经提取（只提取一次）
+        self.extract_all_vectors()
         
         # 标准化向量
         pos_vectors_norm = normalize(self.positive_vectors)
@@ -962,10 +1059,61 @@ class PrototypeLearner:
             'recommendation': 'smooth_contrastive' if avg_sim > 0.3 else 'standard_contrastive'
         }
 
+    def optimize_batch_size(self, test_texts: List[str] = None, max_batch_size: int = 128):
+        """
+        自动优化批处理大小
+        通过测试不同的批处理大小，找到最优的批处理大小
+        
+        Args:
+            test_texts: 测试文本列表，如果为None则使用部分样本
+            max_batch_size: 最大批处理大小
+            
+        Returns:
+            int: 推荐的批处理大小
+        """
+        print("开始优化批处理大小...")
+        
+        if test_texts is None:
+            # 使用部分样本进行测试（避免用全部数据）
+            sample_size = min(100, len(self.data))
+            test_texts = self.data['question_1'].tolist()[:sample_size]
+        
+        test_sizes = [1, 8, 16, 32, 64, 128]
+        test_sizes = [size for size in test_sizes if size <= max_batch_size]
+        
+        results = []
+        for batch_size in test_sizes:
+            print(f"\n测试批处理大小: {batch_size}")
+            
+            import time
+            start_time = time.time()
+            
+            # 使用批处理提取向量
+            _ = self.extract_vectors_batch(test_texts, batch_size)
+            
+            elapsed_time = time.time() - start_time
+            speed = len(test_texts) / elapsed_time  # 每秒处理的文本数
+            
+            print(f"处理时间: {elapsed_time:.2f}秒, 速度: {speed:.2f}文本/秒")
+            results.append({'batch_size': batch_size, 'speed': speed, 'time': elapsed_time})
+        
+        # 找出速度最快的批处理大小
+        best_result = max(results, key=lambda x: x['speed'])
+        print(f"\n批处理大小优化结果:")
+        for result in results:
+            print(f"  批大小 {result['batch_size']}: {result['speed']:.2f}文本/秒 ({result['time']:.2f}秒)")
+        
+        print(f"\n推荐批处理大小: {best_result['batch_size']}")
+        self.batch_size = best_result['batch_size']
+        print(f"已更新批处理大小为: {self.batch_size}")
+        
+        return best_result['batch_size']
+
 
 def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b", 
                          n_positive_clusters: int = 10, n_negative_clusters: int = 10,
-                         temperature: float = 1.0, save_path: str = None) -> Dict:
+                         temperature: float = 1.0, save_path: str = None,
+                         batch_size: int = 32) -> Dict:
     """
     构建价值观原型向量库的主函数
     
@@ -976,6 +1124,7 @@ def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b",
         n_negative_clusters: 负样本聚类数量（默认10）
         temperature: 温度系数（默认1.0，使用平滑对比）
         save_path: 可选的保存路径
+        batch_size: 批处理大小（默认32）
         
     Returns:
         Dict: 包含原型和反原型的字典
@@ -987,7 +1136,7 @@ def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b",
     model = T5Model(model_name)
     
     # 创建原型学习器
-    learner = PrototypeLearner(model, csv_path)
+    learner = PrototypeLearner(model, csv_path, batch_size=batch_size)
     
     # 分析数据特征
     characteristics = learner.analyze_data_characteristics()
@@ -1023,7 +1172,8 @@ def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b",
                 'parameters': {
                     'temperature': temperature,
                     'n_positive_clusters': n_positive_clusters,
-                    'n_negative_clusters': n_negative_clusters
+                    'n_negative_clusters': n_negative_clusters,
+                    'batch_size': batch_size
                 }
             }, f, ensure_ascii=False, indent=2)
         print(f"分析报告已保存到: {report_path}")
@@ -1046,8 +1196,11 @@ if __name__ == "__main__":
     print(f"加载模型: t5-3b")
     model = T5Model("t5-3b")
     
-    # 创建原型学习器
-    learner = PrototypeLearner(model, csv_path)
+    # 创建原型学习器（设置批处理大小）
+    learner = PrototypeLearner(model, csv_path, batch_size=32)
+    
+    # 可选：优化批处理大小（第一次运行时可以测试）
+    # learner.optimize_batch_size()
     
     # 分析数据特征
     characteristics = learner.analyze_data_characteristics()
@@ -1090,5 +1243,5 @@ if __name__ == "__main__":
     print(f"\n" + "="*60)
     print(f"{learner.value_name.capitalize()} 价值观原型构建完成!")
     print(f"最终质量得分: {score:.4f}")
-    print(f"参数配置: 温度={best_params['temperature']}, 聚类数={best_params['n_clusters']}")
+    print(f"参数配置: 温度={best_params['temperature']}, 聚类数={best_params['n_clusters']}, 批大小={learner.batch_size}")
     print("="*60)
