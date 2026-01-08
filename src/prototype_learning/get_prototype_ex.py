@@ -16,14 +16,9 @@ import re
 import json
 warnings.filterwarnings('ignore')
 
-# 设置中文字体支持 - 修正版
-try:
-    # 尝试使用系统中可用的中文字体
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Microsoft YaHei', 'SimHei', 'Arial Unicode MS']
-    plt.rcParams['axes.unicode_minus'] = False
-    print("中文字体设置成功")
-except:
-    print("中文字体设置失败，使用默认字体")
+# 设置中文字体支持
+plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']  # 用来正常显示中文标签
+plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
 
 # 修改导入方式，使用相对路径导入
 import sys
@@ -118,119 +113,74 @@ class PrototypeLearner:
         print(f"向量提取完成，维度: {len(vectors[0])}")
         return np.array(vectors)
     
-    def smooth_contrastive_learning(self, pos_vectors: np.ndarray, neg_vectors: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def contrastive_learning(self, pos_vectors: np.ndarray, neg_vectors: np.ndarray, 
+                           temperature: float = 0.07) -> Tuple[np.ndarray, np.ndarray]:
         """
-        平滑对比学习机制，避免温度调节，适用于重叠度高的价值观数据
+        对比学习机制，增强价值观特征的表征区分度
         
         Args:
             pos_vectors: 正样本向量
             neg_vectors: 负样本向量
+            temperature: 温度参数，控制对比学习的锐度
             
         Returns:
             Tuple[np.ndarray, np.ndarray]: 经过对比学习优化的正负样本向量
         """
-        print("开始进行平滑对比学习...")
+        print(f"开始进行对比学习，温度系数: {temperature}")
         
         # 标准化向量
-        pos_vectors_norm = normalize(pos_vectors)
-        neg_vectors_norm = normalize(neg_vectors)
+        pos_vectors = normalize(pos_vectors)
+        neg_vectors = normalize(neg_vectors)
         
-        # 计算全局中心
-        pos_center = np.mean(pos_vectors_norm, axis=0)
-        neg_center = np.mean(neg_vectors_norm, axis=0)
+        # 计算正样本间的相似度矩阵
+        pos_sim = cosine_similarity(pos_vectors)
+        # 计算正负样本间的相似度矩阵
+        pos_neg_sim = cosine_similarity(pos_vectors, neg_vectors)
         
-        # 平滑更新：所有样本向类中心收缩，同时远离对方类中心
-        refined_pos = []
-        for vec in pos_vectors_norm:
-            # 向正样本中心靠拢，远离负样本中心
-            # 使用线性组合，避免极端值
-            new_vec = 0.8 * vec + 0.1 * pos_center - 0.1 * neg_center
-            refined_pos.append(new_vec)
+        # 使用softmax调整相似度权重
+        # 将正样本间相似度放大，负样本间相似度减小
+        pos_sim_exp = np.exp(pos_sim / temperature)
+        pos_neg_sim_exp = np.exp(-pos_neg_sim / temperature)
         
-        refined_neg = []
-        for vec in neg_vectors_norm:
-            # 向负样本中心靠拢，远离正样本中心
-            new_vec = 0.8 * vec + 0.1 * neg_center - 0.1 * pos_center
-            refined_neg.append(new_vec)
+        # 对角线元素设为0，避免自己与自己的相似度影响
+        np.fill_diagonal(pos_sim_exp, 0)
         
-        # 重新标准化
-        refined_pos = normalize(np.array(refined_pos))
-        refined_neg = normalize(np.array(refined_neg))
+        # 根据相似度重新加权向量
+        refined_pos_vectors = []
+        for i in range(len(pos_vectors)):
+            # 计算与所有正样本的加权平均（拉近正样本）
+            pos_weights = pos_sim_exp[i] / (np.sum(pos_sim_exp[i]) + 1e-8)
+            refined_pos = np.average(pos_vectors, axis=0, weights=pos_weights)
+            
+            # 减去与负样本的加权影响（推远负样本）
+            neg_weights = np.mean(pos_neg_sim_exp[i]) / (len(neg_vectors) + 1e-8)
+            avg_neg = np.mean(neg_vectors, axis=0)
+            
+            refined_vector = refined_pos - 0.1 * neg_weights * avg_neg
+            refined_pos_vectors.append(refined_vector)
         
-        print("平滑对比学习完成")
-        return refined_pos, refined_neg
-    
-    def contrastive_learning(self, pos_vectors: np.ndarray, neg_vectors: np.ndarray, 
-                           temperature: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        对比学习机制（兼容性版本，默认使用平滑对比）
+        refined_pos_vectors = np.array(refined_pos_vectors)
         
-        Args:
-            pos_vectors: 正样本向量
-            neg_vectors: 负样本向量
-            temperature: 温度参数，当temperature=1时使用平滑对比
+        # 同样处理负样本，使其远离正样本
+        refined_neg_vectors = []
+        for i in range(len(neg_vectors)):
+            # 计算与所有负样本的加权平均（拉近负样本）
+            neg_sim_exp = np.exp(cosine_similarity([neg_vectors[i]], neg_vectors)[0] / temperature)
+            np.fill_diagonal(np.array([neg_sim_exp]), 0)
+            neg_weights = neg_sim_exp / (np.sum(neg_sim_exp) + 1e-8)
+            refined_neg = np.average(neg_vectors, axis=0, weights=neg_weights)
             
-        Returns:
-            Tuple[np.ndarray, np.ndarray]: 经过对比学习优化的正负样本向量
-        """
-        if temperature == 1.0:
-            # 使用平滑对比学习
-            return self.smooth_contrastive_learning(pos_vectors, neg_vectors)
-        else:
-            print(f"使用标准对比学习，温度系数: {temperature}")
+            # 减去与正样本的加权影响（推远正样本）
+            pos_weights = np.mean(cosine_similarity([neg_vectors[i]], pos_vectors)[0]) / (len(pos_vectors) + 1e-8)
+            avg_pos = np.mean(pos_vectors, axis=0)
             
-            # 标准化向量
-            pos_vectors = normalize(pos_vectors)
-            neg_vectors = normalize(neg_vectors)
-            
-            # 计算正样本间的相似度矩阵
-            pos_sim = cosine_similarity(pos_vectors)
-            # 计算正负样本间的相似度矩阵
-            pos_neg_sim = cosine_similarity(pos_vectors, neg_vectors)
-            
-            # 使用softmax调整相似度权重
-            pos_sim_exp = np.exp(pos_sim / temperature)
-            pos_neg_sim_exp = np.exp(-pos_neg_sim / temperature)
-            
-            # 对角线元素设为0，避免自己与自己的相似度影响
-            np.fill_diagonal(pos_sim_exp, 0)
-            
-            # 根据相似度重新加权向量
-            refined_pos_vectors = []
-            for i in range(len(pos_vectors)):
-                # 计算与所有正样本的加权平均（拉近正样本）
-                pos_weights = pos_sim_exp[i] / (np.sum(pos_sim_exp[i]) + 1e-8)
-                refined_pos = np.average(pos_vectors, axis=0, weights=pos_weights)
-                
-                # 减去与负样本的加权影响（推远负样本）
-                neg_weights = np.mean(pos_neg_sim_exp[i]) / (len(neg_vectors) + 1e-8)
-                avg_neg = np.mean(neg_vectors, axis=0)
-                
-                refined_vector = refined_pos - 0.1 * neg_weights * avg_neg
-                refined_pos_vectors.append(refined_vector)
-            
-            refined_pos_vectors = np.array(refined_pos_vectors)
-            
-            # 同样处理负样本，使其远离正样本
-            refined_neg_vectors = []
-            for i in range(len(neg_vectors)):
-                # 计算与所有负样本的加权平均（拉近负样本）
-                neg_sim_exp = np.exp(cosine_similarity([neg_vectors[i]], neg_vectors)[0] / temperature)
-                np.fill_diagonal(np.array([neg_sim_exp]), 0)
-                neg_weights = neg_sim_exp / (np.sum(neg_sim_exp) + 1e-8)
-                refined_neg = np.average(neg_vectors, axis=0, weights=neg_weights)
-                
-                # 减去与正样本的加权影响（推远正样本）
-                pos_weights = np.mean(cosine_similarity([neg_vectors[i]], pos_vectors)[0]) / (len(pos_vectors) + 1e-8)
-                avg_pos = np.mean(pos_vectors, axis=0)
-                
-                refined_vector = refined_neg - 0.1 * pos_weights * avg_pos
-                refined_neg_vectors.append(refined_vector)
-            
-            refined_neg_vectors = np.array(refined_neg_vectors)
-            
-            print("对比学习完成")
-            return refined_pos_vectors, refined_neg_vectors
+            refined_vector = refined_neg - 0.1 * pos_weights * avg_pos
+            refined_neg_vectors.append(refined_vector)
+        
+        refined_neg_vectors = np.array(refined_neg_vectors)
+        
+        print("对比学习完成")
+        return refined_pos_vectors, refined_neg_vectors
     
     def cluster_vectors(self, vectors: np.ndarray, n_clusters: int = None, texts: List[str] = None) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -253,7 +203,7 @@ class PrototypeLearner:
         # 使用层次聚类
         clustering = AgglomerativeClustering(
             n_clusters=n_clusters,
-            linkage='ward'  
+            linkage='ward'  # Ward linkage minimizes within-cluster variance
         )
         
         cluster_labels = clustering.fit_predict(vectors)
@@ -270,14 +220,14 @@ class PrototypeLearner:
         print(f"聚类完成，共{len(centroids)}个聚类中心")
         return np.array(centroids), cluster_labels
     
-    def build_prototype_space(self, n_positive_clusters: int = 10, n_negative_clusters: int = 10, temperature: float = 1.0) -> Dict:
+    def build_prototype_space(self, n_positive_clusters: int = 5, n_negative_clusters: int = 5, temperature: float = 0.07) -> Dict:
         """
         构建价值观原型空间
         
         Args:
-            n_positive_clusters: 正样本聚类数量（默认10）
-            n_negative_clusters: 负样本聚类数量（默认10）
-            temperature: 对比学习温度系数（默认1.0，使用平滑对比）
+            n_positive_clusters: 正样本聚类数量
+            n_negative_clusters: 负样本聚类数量
+            temperature: 对比学习温度系数
             
         Returns:
             Dict: 包含原型和反原型的字典
@@ -295,7 +245,7 @@ class PrototypeLearner:
         print("提取负样本向量...")
         self.negative_vectors = self.extract_vectors(negative_texts)
         
-        # 对比学习优化（默认使用平滑对比）
+        # 对比学习优化
         self.positive_vectors, self.negative_vectors = self.contrastive_learning(
             self.positive_vectors, 
             self.negative_vectors,
@@ -313,12 +263,7 @@ class PrototypeLearner:
             'positive_prototypes': positive_prototypes,
             'negative_prototypes': negative_prototypes,
             'positive_count': len(positive_prototypes),
-            'negative_count': len(negative_prototypes),
-            'config': {
-                'temperature': temperature,
-                'n_positive_clusters': n_positive_clusters,
-                'n_negative_clusters': n_negative_clusters
-            }
+            'negative_count': len(negative_prototypes)
         }
         
         print(f"原型空间构建完成:")
@@ -340,12 +285,6 @@ class PrototypeLearner:
         negative_path = os.path.join(value_dir, f'{self.value_name}_negative_prototypes.npy')
         np.save(positive_path, self.prototypes['positive_prototypes'])
         np.save(negative_path, self.prototypes['negative_prototypes'])
-        
-        # 保存配置
-        if 'config' in self.prototypes:
-            config_path = os.path.join(value_dir, f'{self.value_name}_config.json')
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(self.prototypes['config'], f, ensure_ascii=False, indent=2)
         
         print(f"原型已保存到: {value_dir}")
     
@@ -437,7 +376,6 @@ class PrototypeLearner:
         """
         可视化原型向量
         使用PCA将高维向量降到2D进行可视化，并使用价值观名称命名
-        显示所有样本点并用颜色区分不同的聚类
         """
         if not self.prototypes or 'positive_prototypes' not in self.prototypes:
             print("没有找到原型数据，请先构建原型空间")
@@ -447,8 +385,10 @@ class PrototypeLearner:
         pos_prototypes = self.prototypes['positive_prototypes']
         neg_prototypes = self.prototypes['negative_prototypes']
         
-        # 使用PCA降维到2D
+        # 合并所有原型
         all_prototypes = np.vstack([pos_prototypes, neg_prototypes])
+        
+        # 使用PCA降维到2D
         pca = PCA(n_components=2)
         prototypes_2d = pca.fit_transform(all_prototypes)
         
@@ -457,7 +397,7 @@ class PrototypeLearner:
         neg_2d = prototypes_2d[len(pos_prototypes):]
         
         # 创建图形
-        plt.figure(figsize=(12, 8))
+        plt.figure(figsize=(10, 8))
         
         # 绘制正原型（用蓝色圆点表示）
         plt.scatter(pos_2d[:, 0], pos_2d[:, 1], c='blue', label='Positive Prototypes', alpha=0.7, s=100)
@@ -465,38 +405,12 @@ class PrototypeLearner:
         # 绘制负原型（用红色叉号表示）
         plt.scatter(neg_2d[:, 0], neg_2d[:, 1], c='red', label='Negative Prototypes', alpha=0.7, marker='x', s=100)
         
-        # 如果存在聚类标签，也显示聚类结果
-        if hasattr(self, 'positive_cluster_labels') and hasattr(self, 'negative_cluster_labels'):
-            # 获取原始向量并降维以可视化聚类
-            if self.positive_vectors is not None and self.negative_vectors is not None:
-                # 对原始向量进行PCA降维
-                all_original_vectors = np.vstack([self.positive_vectors, self.negative_vectors])
-                original_vectors_2d = pca.transform(all_original_vectors)
-                
-                # 分离正负样本的2D坐标
-                pos_original_2d = original_vectors_2d[:len(self.positive_vectors)]
-                neg_original_2d = original_vectors_2d[len(self.positive_vectors):]
-                
-                # 使用不同颜色绘制各个聚类
-                unique_pos_clusters = np.unique(self.positive_cluster_labels)
-                unique_neg_clusters = np.unique(self.negative_cluster_labels)
-                
-                # 为正样本聚类分配颜色
-                colors = plt.cm.Set3(np.linspace(0, 1, len(unique_pos_clusters) + len(unique_neg_clusters)))
-                
-                # 绘制正样本聚类
-                for i, cluster_id in enumerate(unique_pos_clusters):
-                    mask = self.positive_cluster_labels == cluster_id
-                    cluster_points = pos_original_2d[mask]
-                    plt.scatter(cluster_points[:, 0], cluster_points[:, 1], 
-                              c=[colors[i]], label=f'Pos Cluster {cluster_id}', alpha=0.6, s=30)
-                
-                # 绘制负样本聚类
-                for i, cluster_id in enumerate(unique_neg_clusters):
-                    mask = self.negative_cluster_labels == cluster_id
-                    cluster_points = neg_original_2d[mask]
-                    plt.scatter(cluster_points[:, 0], cluster_points[:, 1], 
-                              c=[colors[len(unique_pos_clusters) + i]], label=f'Neg Cluster {cluster_id}', alpha=0.6, s=30)
+        # 添加标题和标签
+        plt.title(f'Visualization of {self.value_name.capitalize()} Value Alignment Prototypes\n(PCA 2D Projection)', fontsize=14)
+        plt.xlabel('Principal Component 1')
+        plt.ylabel('Principal Component 2')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
         
         # 如果提供了保存路径，则使用价值观名称创建子目录并命名文件
         if save_path:
@@ -509,9 +423,7 @@ class PrototypeLearner:
             vis_path = os.path.join(value_subdir, f'{self.value_name}_prototype_visualization.png')
             plt.savefig(vis_path, dpi=300, bbox_inches='tight')
             print(f"原型可视化图已保存到: {vis_path}")
-            plt.close()
         else:
-            plt.tight_layout()
             plt.show()
         
         print(f"PCA Explained Variance Ratio: {pca.explained_variance_ratio_}")
@@ -553,7 +465,14 @@ class PrototypeLearner:
         neg_distances = [np.linalg.norm(proto - neg_center) for proto in neg_prototypes]
         avg_neg_intra_distance = np.mean(neg_distances)
         
-        # 3. 计算整体聚类的轮廓系数
+        # 3. 计算分离度与内部凝聚度的比率（越大越好）
+        if avg_pos_intra_distance == 0 or avg_neg_intra_distance == 0:
+            separation_to_cohesion_ratio = float('inf')
+        else:
+            avg_intra_distance = (avg_pos_intra_distance + avg_neg_intra_distance) / 2
+            separation_to_cohesion_ratio = center_distance / avg_intra_distance
+        
+        # 4. 计算整体聚类的轮廓系数
         from sklearn.metrics import silhouette_score
         all_prototypes = np.vstack([pos_prototypes, neg_prototypes])
         labels = [0] * len(pos_prototypes) + [1] * len(neg_prototypes)
@@ -564,6 +483,7 @@ class PrototypeLearner:
             'cosine_similarity': cos_sim,  # 中心余弦相似度
             'avg_pos_intra_distance': avg_pos_intra_distance,  # 正原型内部平均距离
             'avg_neg_intra_distance': avg_neg_intra_distance,  # 负原型内部平均距离
+            'separation_to_cohesion_ratio': separation_to_cohesion_ratio,  # 分离度与凝聚度比率
             'silhouette_score': silhouette_avg  # 轮廓系数
         }
         
@@ -575,45 +495,57 @@ class PrototypeLearner:
 
     def _calculate_normalized_quality_score(self, metrics: Dict) -> float:
         """
-        使用信息重叠更少的指标进行原型质量评估
-        移除分离度指标，仅使用凝聚度和平衡性两个指标
+        计算标准化的原型质量得分，将每个指标转换为0-1得分并加权
         
         Args:
-            metrics: 包含质量指标的字典
+            metrics: 包含质量评估指标的字典
             
         Returns:
-            float: 归一化后的质量得分 [0, 1]
+            float: 0-1范围内的最终质量得分
         """
-        def sigmoid_norm(x, midpoint, steepness=10):
-            """使用sigmoid函数进行平滑归一化"""
-            return 1 / (1 + np.exp(-steepness * (x - midpoint)))
-        
-        # 移除分离度指标，仅使用凝聚度和平衡性指标
-        # 调整权重分配，使两个指标各占50%
+        # 指标权重设置
         weights = {
-            'cohesion_score': 0.5,    # 凝聚度综合指标
-            'balance_score': 0.5      # 平衡性指标
+            'center_distance': 0.25,    # 中心距离权重
+            'cosine_similarity': 0.25,  # 余弦相似度权重（负相关，需取反）
+            'avg_pos_intra_distance': 0.15,  # 正原型内部距离权重（负相关）
+            'avg_neg_intra_distance': 0.15,  # 负原型内部距离权重（负相关）
+            'silhouette_score': 0.20    # 轮廓系数权重
         }
         
-        # 1. 凝聚度指标（考虑正负差异）
-        avg_intra = (metrics['avg_pos_intra_distance'] + 
-                     metrics['avg_neg_intra_distance']) / 2
-        cohesion_score = 1 - sigmoid_norm(avg_intra, midpoint=0.2)
+        # 归一化参数（基于典型值范围）
+        max_center_distance = 5.0  # 假设最大中心距离
+        max_intra_distance = 2.0   # 假设最大内部距离
+        max_silhouette = 1.0       # 轮廓系数最大值
         
-        # 2. 平衡性指标（正负原型数量和质量是否均衡）
-        pos_intra = metrics['avg_pos_intra_distance']
-        neg_intra = metrics['avg_neg_intra_distance']
-        intra_sum = pos_intra + neg_intra + 1e-8
-        balance_score = 1 - abs(pos_intra - neg_intra) / intra_sum
+        # 计算各指标的0-1标准化得分
+        # 中心距离：越大越好，直接归一化
+        center_distance_score = min(metrics['center_distance'] / max_center_distance, 1.0)
         
-        # 计算总分
+        # 余弦相似度：越小越好（负值更佳），转换为正值后取反归一化
+        # cos_sim越负越好，所以计算为 (1 - cos_sim)/2，将其映射到0-1范围
+        cos_sim_score = (1 - metrics['cosine_similarity']) / 2.0
+        cos_sim_score = max(0.0, min(cos_sim_score, 1.0))  # 确保在0-1范围内
+        
+        # 正原型内部距离：越小越好，取倒数或线性转换
+        avg_pos_intra_score = max(0.0, min(1.0 - metrics['avg_pos_intra_distance'] / max_intra_distance, 1.0))
+        
+        # 负原型内部距离：越小越好，取倒数或线性转换
+        avg_neg_intra_score = max(0.0, min(1.0 - metrics['avg_neg_intra_distance'] / max_intra_distance, 1.0))
+        
+        # 轮廓系数：越大越好，取绝对值并归一化
+        silhouette_score = (metrics['silhouette_score'] + 1) / 2  # 将[-1,1]映射到[0,1]
+        
+        # 计算加权总分
+        # 注意：内部距离只计算一次，所以平均它们的得分
         total_score = (
-            weights['cohesion_score'] * cohesion_score +
-            weights['balance_score'] * balance_score
+            weights['center_distance'] * center_distance_score +
+            weights['cosine_similarity'] * cos_sim_score +
+            (weights['avg_pos_intra_distance'] + weights['avg_neg_intra_distance']) / 2 * 
+            (avg_pos_intra_score + avg_neg_intra_score) / 2 +
+            weights['silhouette_score'] * silhouette_score
         )
         
-        # 确保分数在[0, 1]范围内
-        return max(0.0, min(1.0, total_score))
+        return total_score
 
     def compare_prototype_quality(self, temperature_values: List[float], cluster_values: List[int], save_path: str = None):
         """
@@ -720,84 +652,18 @@ class PrototypeLearner:
 
     def _visualize_comparison_results(self, results: List[Dict], temperature_values: List[float], cluster_values: List[int], save_path: str = None):
         """
-        可视化对比结果 - 当温度系数只有1.0时使用条形图，否则使用热力图
+        可视化对比结果
         """
         print("正在生成对比结果可视化图...")
         
-        # 检查是否只有一个温度值且为1.0
+        # 准备数据
         temp_unique = sorted(set([r['temperature'] for r in results]))
         cluster_unique = sorted(set([r['n_clusters'] for r in results]))
-        
-        if len(temp_unique) == 1 and temp_unique[0] == 1.0:
-            # 只有一个温度值1.0，使用条形图
-            self._visualize_with_bar_charts(results, cluster_unique, save_path)
-        else:
-            # 多个温度值，使用热力图
-            self._visualize_with_heatmaps(results, temp_unique, cluster_unique, save_path)
-
-    def _visualize_with_bar_charts(self, results: List[Dict], cluster_values: List[int], save_path: str = None):
-        """
-        使用条形图可视化单温度下的结果
-        """
-        print("使用条形图可视化单温度下的结果...")
-        
-        # 准备数据
-        cluster_values_sorted = sorted(cluster_values)
-        scores = []
-        
-        for n_clusters in cluster_values_sorted:
-            result = next((r for r in results if r['n_clusters'] == n_clusters and r['temperature'] == 1.0), None)
-            if result:
-                scores.append(result['score'])
-            else:
-                scores.append(0)
-        
-        # 创建子图
-        fig, ax = plt.subplots(1, 1, figsize=(10, 6))
-        fig.suptitle(f'{self.value_name.capitalize()} - Parameter Comparison Bar Chart (Temperature=1.0)', 
-                     fontsize=16, fontweight='bold')
-        
-        # 总体得分条形图
-        bars1 = ax.bar(cluster_values_sorted, scores, color='skyblue', edgecolor='navy', alpha=0.7)
-        ax.set_title('Overall Quality Score', fontsize=12, fontweight='bold')
-        ax.set_xlabel('Clusters', fontsize=11)
-        ax.set_ylabel('Score', fontsize=11)
-        ax.set_xticks(cluster_values_sorted)  # 设置横坐标刻度为聚类数的实际值
-        ax.grid(axis='y', alpha=0.3)
-        # 在每个条形上添加数值
-        for bar, score in zip(bars1, scores):
-            height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height,
-                            f'{score:.3f}',
-                            ha="center", va="bottom", fontsize=9, fontweight='bold')
-        
-        # 调整布局
-        plt.tight_layout()
-        
-        # 保存图片
-        if save_path:
-            value_dir = os.path.join(save_path, self.value_name)
-            os.makedirs(value_dir, exist_ok=True)
-            plot_path = os.path.join(value_dir, f'{self.value_name}_parameter_comparison.png')
-            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-            print(f"参数对比可视化图已保存到: {plot_path}")
-            plt.close()
-        else:
-            plt.show()
-
-    def _visualize_with_heatmaps(self, results: List[Dict], temp_unique: List[float], cluster_unique: List[int], save_path: str = None):
-        """
-        使用热力图可视化多温度下的结果
-        适配新的评估指标
-        """
-        print("使用热力图可视化多温度下的结果...")
-        
-        # 准备数据
         temp_mesh, cluster_mesh = np.meshgrid(temp_unique, cluster_unique)
         score_mesh = np.zeros_like(temp_mesh, dtype=float)
-        # 移除分离度得分热力图，仅保留凝聚度和平衡性得分
-        cohesion_mesh = np.zeros_like(temp_mesh, dtype=float)
-        balance_mesh = np.zeros_like(temp_mesh, dtype=float)
+        center_distance_mesh = np.zeros_like(temp_mesh, dtype=float)
+        cosine_sim_mesh = np.zeros_like(temp_mesh, dtype=float)
+        silhouette_mesh = np.zeros_like(temp_mesh, dtype=float)
         
         # 填充网格数据
         for i, n_clusters in enumerate(cluster_unique):
@@ -805,82 +671,77 @@ class PrototypeLearner:
                 result = next((r for r in results if r['temperature'] == temp and r['n_clusters'] == n_clusters), None)
                 if result:
                     score_mesh[i, j] = result['score']
-                    
-                    # 提取指标并计算新指标的组成部分
-                    metrics = result['quality_metrics']
-                    
-                    # 凝聚度得分：1 - avg_intra_distance（归一化）
-                    avg_intra = (metrics['avg_pos_intra_distance'] + metrics['avg_neg_intra_distance']) / 2
-                    cohesion_mesh[i, j] = 1 - avg_intra if avg_intra < 1 else 0
-                    
-                    # 平衡性得分
-                    pos_intra = metrics['avg_pos_intra_distance']
-                    neg_intra = metrics['avg_neg_intra_distance']
-                    intra_sum = pos_intra + neg_intra + 1e-8
-                    balance_mesh[i, j] = 1 - abs(pos_intra - neg_intra) / intra_sum
+                    center_distance_mesh[i, j] = result['quality_metrics']['center_distance']
+                    cosine_sim_mesh[i, j] = result['quality_metrics']['cosine_similarity']
+                    silhouette_mesh[i, j] = result['quality_metrics']['silhouette_score']
         
         # 创建子图
-        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-        # 使用英文标题避免乱码
-        fig.suptitle(f'{self.value_name.capitalize()} - Parameter Comparison Heatmaps', fontsize=16, fontweight='bold')
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig.suptitle(f'{self.value_name.capitalize()} - 参数对比热力图', fontsize=16)
         
         # 总体得分热力图
-        im1 = axes[0].imshow(score_mesh, cmap='viridis', aspect='auto', origin='lower')
-        axes[0].set_xticks(range(len(temp_unique)))
-        axes[0].set_xticklabels([f"{t}" for t in temp_unique])
-        axes[0].set_yticks(range(len(cluster_unique)))
-        axes[0].set_yticklabels([str(c) for c in cluster_unique])
-        axes[0].set_title('Overall Quality Score', fontsize=12, fontweight='bold')
-        axes[0].set_xlabel('Temperature', fontsize=11)
-        axes[0].set_ylabel('Clusters', fontsize=11)
-        cbar1 = plt.colorbar(im1, ax=axes[0])
-        cbar1.ax.set_ylabel('Score', rotation=270, labelpad=15)
+        im1 = axes[0, 0].imshow(score_mesh, cmap='viridis', aspect='auto', origin='lower')
+        axes[0, 0].set_xticks(range(len(temp_unique)))
+        axes[0, 0].set_xticklabels([f"{t}" for t in temp_unique])
+        axes[0, 0].set_yticks(range(len(cluster_unique)))
+        axes[0, 0].set_yticklabels([str(c) for c in cluster_unique])
+        axes[0, 0].set_title('总体得分')
+        axes[0, 0].set_xlabel('温度系数')
+        axes[0, 0].set_ylabel('聚类数')
+        plt.colorbar(im1, ax=axes[0, 0])
         # 在每个格子中添加数值
         for i in range(len(cluster_unique)):
             for j in range(len(temp_unique)):
-                axes[0].text(j, i, f"{score_mesh[i, j]:.3f}",
-                                ha="center", va="center", color="white", 
-                                fontsize=8, fontweight='bold')
+                text = axes[0, 0].text(j, i, f"{score_mesh[i, j]:.3f}",
+                                       ha="center", va="center", color="white", fontsize=9)
         
-        # 凝聚度得分热力图
-        im2 = axes[1].imshow(cohesion_mesh, cmap='RdYlBu_r', aspect='auto', origin='lower')
-        axes[1].set_xticks(range(len(temp_unique)))
-        axes[1].set_xticklabels([f"{t}" for t in temp_unique])
-        axes[1].set_yticks(range(len(cluster_unique)))
-        axes[1].set_yticklabels([str(c) for c in cluster_unique])
-        axes[1].set_title('Cohesion Score (1 - Avg Intra Dist)', fontsize=12, fontweight='bold')
-        axes[1].set_xlabel('Temperature', fontsize=11)
-        axes[1].set_ylabel('Clusters', fontsize=11)
-        cbar2 = plt.colorbar(im2, ax=axes[1])
-        cbar2.ax.set_ylabel('Score', rotation=270, labelpad=15)
+        # 中心距离热力图
+        im2 = axes[0, 1].imshow(center_distance_mesh, cmap='plasma', aspect='auto', origin='lower')
+        axes[0, 1].set_xticks(range(len(temp_unique)))
+        axes[0, 1].set_xticklabels([f"{t}" for t in temp_unique])
+        axes[0, 1].set_yticks(range(len(cluster_unique)))
+        axes[0, 1].set_yticklabels([str(c) for c in cluster_unique])
+        axes[0, 1].set_title('正负原型中心距离')
+        axes[0, 1].set_xlabel('温度系数')
+        axes[0, 1].set_ylabel('聚类数')
+        plt.colorbar(im2, ax=axes[0, 1])
         # 在每个格子中添加数值
         for i in range(len(cluster_unique)):
             for j in range(len(temp_unique)):
-                text_color = 'white' if cohesion_mesh[i, j] > 0.5 else 'black'
-                axes[1].text(j, i, f"{cohesion_mesh[i, j]:.3f}",
-                                ha="center", va="center", color=text_color, 
-                                fontsize=8, fontweight='bold')
+                text = axes[0, 1].text(j, i, f"{center_distance_mesh[i, j]:.3f}",
+                                       ha="center", va="center", color="white", fontsize=9)
         
-        # 平衡性得分热力图
-        im3 = axes[2].imshow(balance_mesh, cmap='viridis', aspect='auto', origin='lower')
-        axes[2].set_xticks(range(len(temp_unique)))
-        axes[2].set_xticklabels([f"{t}" for t in temp_unique])
-        axes[2].set_yticks(range(len(cluster_unique)))
-        axes[2].set_yticklabels([str(c) for c in cluster_unique])
-        axes[2].set_title('Balance Score (1 - |Pos-Neg|/Sum)', fontsize=12, fontweight='bold')
-        axes[2].set_xlabel('Temperature', fontsize=11)
-        axes[2].set_ylabel('Clusters', fontsize=11)
-        cbar3 = plt.colorbar(im3, ax=axes[2])
-        cbar3.ax.set_ylabel('Score', rotation=270, labelpad=15)
+        # 余弦相似度热力图
+        im3 = axes[1, 0].imshow(cosine_sim_mesh, cmap='RdYlBu', aspect='auto', origin='lower')
+        axes[1, 0].set_xticks(range(len(temp_unique)))
+        axes[1, 0].set_xticklabels([f"{t}" for t in temp_unique])
+        axes[1, 0].set_yticks(range(len(cluster_unique)))
+        axes[1, 0].set_yticklabels([str(c) for c in cluster_unique])
+        axes[1, 0].set_title('正负原型中心余弦相似度')
+        axes[1, 0].set_xlabel('温度系数')
+        axes[1, 0].set_ylabel('聚类数')
+        plt.colorbar(im3, ax=axes[1, 0])
         # 在每个格子中添加数值
         for i in range(len(cluster_unique)):
             for j in range(len(temp_unique)):
-                axes[2].text(j, i, f"{balance_mesh[i, j]:.3f}",
-                                ha="center", va="center", color="white", 
-                                fontsize=8, fontweight='bold')
+                text = axes[1, 0].text(j, i, f"{cosine_sim_mesh[i, j]:.3f}",
+                                       ha="center", va="center", color="black", fontsize=9)
         
-        # 调整布局
-        plt.tight_layout()
+        # 轮廓系数热力图
+        im4 = axes[1, 1].imshow(silhouette_mesh, cmap='viridis', aspect='auto', origin='lower')
+        axes[1, 1].set_xticks(range(len(temp_unique)))
+        axes[1, 1].set_xticklabels([f"{t}" for t in temp_unique])
+        axes[1, 1].set_yticks(range(len(cluster_unique)))
+        axes[1, 1].set_yticklabels([str(c) for c in cluster_unique])
+        axes[1, 1].set_title('轮廓系数')
+        axes[1, 1].set_xlabel('温度系数')
+        axes[1, 1].set_ylabel('聚类数')
+        plt.colorbar(im4, ax=axes[1, 1])
+        # 在每个格子中添加数值
+        for i in range(len(cluster_unique)):
+            for j in range(len(temp_unique)):
+                text = axes[1, 1].text(j, i, f"{silhouette_mesh[i, j]:.3f}",
+                                       ha="center", va="center", color="white", fontsize=9)
         
         # 保存图片
         if save_path:
@@ -889,92 +750,23 @@ class PrototypeLearner:
             plot_path = os.path.join(value_dir, f'{self.value_name}_parameter_comparison.png')
             plt.savefig(plot_path, dpi=300, bbox_inches='tight')
             print(f"参数对比可视化图已保存到: {plot_path}")
-            plt.close()
         else:
             plt.show()
-    
-    def analyze_data_characteristics(self):
-        """
-        分析数据特征，为选择平滑对比学习提供依据
-        """
-        print(f"\n分析数据特征: {self.value_name}")
         
-        # 提取向量（如果尚未提取）
-        if self.positive_vectors is None or self.negative_vectors is None:
-            positive_texts = self.data['question_1'].tolist()
-            negative_texts = self.data['question_2'].tolist()
-            
-            print("提取向量进行分析...")
-            self.positive_vectors = self.extract_vectors(positive_texts)
-            self.negative_vectors = self.extract_vectors(negative_texts)
-        
-        # 标准化向量
-        pos_vectors_norm = normalize(self.positive_vectors)
-        neg_vectors_norm = normalize(self.negative_vectors)
-        
-        # 计算正负样本间的相似度
-        pos_neg_sim = cosine_similarity(pos_vectors_norm, neg_vectors_norm)
-        
-        # 统计信息
-        avg_sim = np.mean(pos_neg_sim)
-        sim_std = np.std(pos_neg_sim)
-        sim_max = np.max(pos_neg_sim)
-        sim_min = np.min(pos_neg_sim)
-        
-        print(f"\n数据特征分析结果:")
-        print(f"1. 正负样本间相似度统计:")
-        print(f"   平均相似度: {avg_sim:.4f}")
-        print(f"   标准差: {sim_std:.4f}")
-        print(f"   最大值: {sim_max:.4f}")
-        print(f"   最小值: {sim_min:.4f}")
-        
-        # 判断是否需要平滑对比学习
-        print(f"\n2. 对比学习策略建议:")
-        if avg_sim > 0.3:
-            print(f"   ✓ 平均相似度较高({avg_sim:.4f} > 0.3)，推荐使用平滑对比学习")
-            print(f"   ✓ 建议温度系数: 1.0")
-        elif avg_sim > 0.1:
-            print(f"   × 平均相似度中等({avg_sim:.4f})，可尝试温度系数: 0.5-1.0")
-        else:
-            print(f"   ✓ 平均相似度较低({avg_sim:.4f})，可使用标准对比学习")
-            print(f"   ✓ 建议温度系数: 0.07-0.2")
-        
-        # 计算正负样本内部相似度
-        pos_sim = cosine_similarity(pos_vectors_norm)
-        neg_sim = cosine_similarity(neg_vectors_norm)
-        
-        # 排除对角线
-        np.fill_diagonal(pos_sim, 0)
-        np.fill_diagonal(neg_sim, 0)
-        
-        avg_pos_intra_sim = np.mean(pos_sim)
-        avg_neg_intra_sim = np.mean(neg_sim)
-        
-        print(f"\n3. 类内相似度统计:")
-        print(f"   正样本内部平均相似度: {avg_pos_intra_sim:.4f}")
-        print(f"   负样本内部平均相似度: {avg_neg_intra_sim:.4f}")
-        
-        return {
-            'avg_cross_similarity': avg_sim,
-            'cross_similarity_std': sim_std,
-            'avg_pos_intra_similarity': avg_pos_intra_sim,
-            'avg_neg_intra_similarity': avg_neg_intra_sim,
-            'recommendation': 'smooth_contrastive' if avg_sim > 0.3 else 'standard_contrastive'
-        }
+        plt.close()
 
 
 def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b", 
-                         n_positive_clusters: int = 10, n_negative_clusters: int = 10,
-                         temperature: float = 1.0, save_path: str = None) -> Dict:
+                         n_positive_clusters: int = 5, n_negative_clusters: int = 5,
+                         save_path: str = None) -> Dict:
     """
     构建价值观原型向量库的主函数
     
     Args:
         csv_path: 包含正负样本的CSV文件路径
         model_name: 预训练模型名称
-        n_positive_clusters: 正样本聚类数量（默认10）
-        n_negative_clusters: 负样本聚类数量（默认10）
-        temperature: 温度系数（默认1.0，使用平滑对比）
+        n_positive_clusters: 正样本聚类数量
+        n_negative_clusters: 负样本聚类数量
         save_path: 可选的保存路径
         
     Returns:
@@ -989,44 +781,14 @@ def get_prototype_vectors(csv_path: str, model_name: str = "t5-3b",
     # 创建原型学习器
     learner = PrototypeLearner(model, csv_path)
     
-    # 分析数据特征
-    characteristics = learner.analyze_data_characteristics()
-    
-    # 根据分析结果调整参数
-    if characteristics['recommendation'] == 'smooth_contrastive':
-        print("\n基于数据特征，使用平滑对比学习策略")
-        temperature = 1.0
-    
     # 构建原型空间
-    prototypes = learner.build_prototype_space(
-        n_positive_clusters=n_positive_clusters,
-        n_negative_clusters=n_negative_clusters,
-        temperature=temperature
-    )
-    
-    # 评估原型质量
-    quality_metrics, score = learner.evaluate_prototype_quality()
+    prototypes = learner.build_prototype_space(n_positive_clusters, n_negative_clusters)
     
     # 如果提供了保存路径，则保存原型
     if save_path:
         learner.save_prototypes(save_path)
         # 同时保存聚类分配情况
         learner.save_cluster_assignments(save_path)
-        
-        # 保存分析报告
-        report_path = os.path.join(save_path, learner.value_name, f"{learner.value_name}_analysis_report.json")
-        with open(report_path, 'w', encoding='utf-8') as f:
-            json.dump({
-                'data_characteristics': characteristics,
-                'quality_metrics': quality_metrics,
-                'quality_score': score,
-                'parameters': {
-                    'temperature': temperature,
-                    'n_positive_clusters': n_positive_clusters,
-                    'n_negative_clusters': n_negative_clusters
-                }
-            }, f, ensure_ascii=False, indent=2)
-        print(f"分析报告已保存到: {report_path}")
     
     return prototypes
 
@@ -1038,29 +800,18 @@ if __name__ == "__main__":
     csv_path = os.path.join(script_dir, "..", "..", "data", "controlled", "achievement_context_controlled.csv")
     save_path = os.path.join(script_dir, "prototypes")
     
-    print("="*60)
-    print("价值观原型向量库构建系统")
-    print("="*60)
+    print("开始构建原型向量库...")
     
     # 加载T5模型
     print(f"加载模型: t5-3b")
     model = T5Model("t5-3b")
     
-    # 创建原型学习器
+    # 创建原型学习器并构建原型空间
     learner = PrototypeLearner(model, csv_path)
     
-    # 分析数据特征
-    characteristics = learner.analyze_data_characteristics()
-    
-    # 根据分析结果确定参数范围
-    if characteristics['avg_cross_similarity'] > 0.3:
-        print("\n数据重叠度高，使用平滑对比学习（温度=1.0）")
-        temperatures = [1.0]  # 只测试温度=1.0
-    else:
-        print("\n数据重叠度中等，测试多个温度系数")
-        temperatures = [0.05, 0.07, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0]
-    
-    clusters = [5, 7, 10, 15, 20]
+    # 定义要测试的温度系数和聚类数
+    temperatures = [0.05, 0.07, 0.1, 0.2, 0.3, 0.5, 0.75, 1.0]
+    clusters = [3, 5, 7, 10, 20]
     
     # 对比不同参数下的指标
     best_params, best_score, all_results = learner.compare_prototype_quality(temperatures, clusters, save_path)
@@ -1068,27 +819,7 @@ if __name__ == "__main__":
     print(f"\n最佳参数组合: 温度系数={best_params['temperature']}, 聚类数={best_params['n_clusters']}")
     print(f"最佳得分: {best_score:.4f}")
     
-    # 使用最佳参数构建最终原型空间
-    print(f"\n使用最佳参数构建最终原型空间...")
-    final_prototypes = learner.build_prototype_space(
-        best_params['n_clusters'], 
-        best_params['n_clusters'], 
-        best_params['temperature']
-    )
-    
-    # 保存最终原型
-    learner.save_prototypes(save_path)
-    learner.save_cluster_assignments(save_path)
-    
     # 可视化最佳参数下的原型
     print("开始可视化最佳参数下的原型...")
+    learner.build_prototype_space(best_params['n_clusters'], best_params['n_clusters'], best_params['temperature'])
     learner.visualize_prototypes(save_path=os.path.join(save_path, "visualization.png"))
-    
-    # 生成最终报告
-    quality_metrics, score = learner.evaluate_prototype_quality()
-    
-    print(f"\n" + "="*60)
-    print(f"{learner.value_name.capitalize()} 价值观原型构建完成!")
-    print(f"最终质量得分: {score:.4f}")
-    print(f"参数配置: 温度={best_params['temperature']}, 聚类数={best_params['n_clusters']}")
-    print("="*60)
