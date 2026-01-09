@@ -264,7 +264,7 @@ class PrototypeLearner:
     
     def cluster_vectors(self, vectors: np.ndarray, n_clusters: int = None, texts: List[str] = None) -> Tuple[np.ndarray, np.ndarray]:
         """
-        对向量进行层次聚类分析
+        对向量进行改进的层次聚类分析，使用降维和距离加权优化聚类效果
         
         Args:
             vectors: 待聚类的向量
@@ -274,19 +274,73 @@ class PrototypeLearner:
         Returns:
             Tuple[np.ndarray, np.ndarray]: 每个聚类的质心向量和聚类标签
         """
-        print(f"开始对{len(vectors)}个向量进行聚类...")
+        print(f"开始对{len(vectors)}个向量进行改进的聚类...")
+        
+        # 数据预处理：检查并处理NaN值和无穷值
+        if np.any(np.isnan(vectors)):
+            print("检测到NaN值，正在进行处理...")
+            # 替换NaN值为列的平均值
+            col_mean = np.nanmean(vectors, axis=0)
+            inds = np.where(np.isnan(vectors))
+            vectors[inds] = np.take(col_mean, inds[1])
+        
+        # 检查是否有无穷值并处理
+        vectors = np.where(np.isinf(vectors), np.sign(vectors)*1e10, vectors)
         
         # 如果未指定聚类数量，使用启发式方法估算
         if n_clusters is None:
             n_clusters = max(3, len(vectors) // 10)  # 每10个样本大约1个聚类
         
-        # 使用层次聚类
-        clustering = AgglomerativeClustering(
-            n_clusters=n_clusters,
-            linkage='ward'  
-        )
+        # 确保聚类数不超过样本数
+        n_clusters = min(n_clusters, len(vectors))
         
-        cluster_labels = clustering.fit_predict(vectors)
+        # 对向量进行标准化
+        vectors_normalized = normalize(vectors)
+        
+        # 尝试使用不同的聚类方法
+        try:
+            # 尝试使用谱聚类，对复杂数据分布更有效
+            from sklearn.cluster import SpectralClustering
+            from sklearn.metrics import pairwise_distances
+            
+            # 计算相似度矩阵，使用RBF核
+            gamma = 1.0 / vectors_normalized.shape[1]  # 特征数的倒数
+            clustering = SpectralClustering(
+                n_clusters=n_clusters,
+                affinity='rbf',
+                gamma=gamma,
+                random_state=42,
+                n_jobs=-1
+            )
+            
+            cluster_labels = clustering.fit_predict(vectors_normalized)
+            
+            # 如果谱聚类失败，回退到优化的层次聚类
+            if len(np.unique(cluster_labels)) < n_clusters:
+                print("谱聚类效果不佳，切换到优化的层次聚类...")
+                clustering = AgglomerativeClustering(
+                    n_clusters=n_clusters,
+                    linkage='average',  # 改为average linkage，对噪声更鲁棒
+                    metric='cosine'  # 使用余弦距离
+                )
+                
+                from sklearn_extra.cluster import KMedoids
+                # 如果sklearn_extra可用，尝试KMedoids
+                try:
+                    kmedoids = KMedoids(n_clusters=n_clusters, metric='cosine', random_state=42, init='k-medoids++')
+                    cluster_labels = kmedoids.fit_predict(vectors_normalized)
+                except ImportError:
+                    print("sklearn_extra未安装，使用优化的AgglomerativeClustering...")
+                    cluster_labels = clustering.fit_predict(vectors_normalized)
+        except:
+            # 如果谱聚类不可用，使用优化的层次聚类
+            from sklearn.cluster import AgglomerativeClustering
+            clustering = AgglomerativeClustering(
+                n_clusters=n_clusters,
+                linkage='average',  # 改为average linkage，对噪声更鲁棒
+                metric='cosine'  # 使用余弦距离
+            )
+            cluster_labels = clustering.fit_predict(vectors_normalized)
         
         # 计算每个聚类的质心
         centroids = []
@@ -478,7 +532,7 @@ class PrototypeLearner:
         """
         可视化原型向量
         使用PCA将高维向量降到2D进行可视化，并使用价值观名称命名
-        显示所有样本点并用颜色区分不同的聚类
+        分别显示正负样本的聚类结果
         """
         if not self.prototypes or 'positive_prototypes' not in self.prototypes:
             print("没有找到原型数据，请先构建原型空间")
@@ -497,47 +551,92 @@ class PrototypeLearner:
         pos_2d = prototypes_2d[:len(pos_prototypes)]
         neg_2d = prototypes_2d[len(pos_prototypes):]
         
-        # 创建图形
-        plt.figure(figsize=(12, 8))
-        
-        # 绘制正原型（用蓝色圆点表示）
-        plt.scatter(pos_2d[:, 0], pos_2d[:, 1], c='blue', label='Positive Prototypes', alpha=0.7, s=100)
-        
-        # 绘制负原型（用红色叉号表示）
-        plt.scatter(neg_2d[:, 0], neg_2d[:, 1], c='red', label='Negative Prototypes', alpha=0.7, marker='x', s=100)
-        
         # 如果存在聚类标签，也显示聚类结果
-        if hasattr(self, 'positive_cluster_labels') and hasattr(self, 'negative_cluster_labels'):
-            # 获取原始向量并降维以可视化聚类
-            if self.positive_vectors is not None and self.negative_vectors is not None:
-                # 对原始向量进行PCA降维
-                all_original_vectors = np.vstack([self.positive_vectors, self.negative_vectors])
-                original_vectors_2d = pca.transform(all_original_vectors)
-                
-                # 分离正负样本的2D坐标
-                pos_original_2d = original_vectors_2d[:len(self.positive_vectors)]
-                neg_original_2d = original_vectors_2d[len(self.positive_vectors):]
-                
-                # 使用不同颜色绘制各个聚类
-                unique_pos_clusters = np.unique(self.positive_cluster_labels)
-                unique_neg_clusters = np.unique(self.negative_cluster_labels)
-                
-                # 为正样本聚类分配颜色
-                colors = plt.cm.Set3(np.linspace(0, 1, len(unique_pos_clusters) + len(unique_neg_clusters)))
-                
-                # 绘制正样本聚类
-                for i, cluster_id in enumerate(unique_pos_clusters):
-                    mask = self.positive_cluster_labels == cluster_id
-                    cluster_points = pos_original_2d[mask]
-                    plt.scatter(cluster_points[:, 0], cluster_points[:, 1], 
+        if (hasattr(self, 'positive_cluster_labels') and hasattr(self, 'negative_cluster_labels') and
+            self.positive_vectors is not None and self.negative_vectors is not None):
+            
+            # 对原始向量进行PCA降维
+            all_original_vectors = np.vstack([self.positive_vectors, self.negative_vectors])
+            original_vectors_2d = pca.transform(all_original_vectors)
+            
+            # 分离正负样本的2D坐标
+            pos_original_2d = original_vectors_2d[:len(self.positive_vectors)]
+            neg_original_2d = original_vectors_2d[len(self.positive_vectors):]
+            
+            # 创建子图，分别显示正负样本
+            fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+            
+            # 1. 显示所有聚类的完整图
+            unique_pos_clusters = np.unique(self.positive_cluster_labels)
+            unique_neg_clusters = np.unique(self.negative_cluster_labels)
+            
+            # 为正样本聚类分配颜色
+            colors = plt.cm.Set3(np.linspace(0, 1, len(unique_pos_clusters) + len(unique_neg_clusters)))
+            
+            # 绘制正样本聚类
+            for i, cluster_id in enumerate(unique_pos_clusters):
+                mask = self.positive_cluster_labels == cluster_id
+                cluster_points = pos_original_2d[mask]
+                axes[0].scatter(cluster_points[:, 0], cluster_points[:, 1], 
                               c=[colors[i]], label=f'Pos Cluster {cluster_id}', alpha=0.6, s=30)
-                
-                # 绘制负样本聚类
-                for i, cluster_id in enumerate(unique_neg_clusters):
-                    mask = self.negative_cluster_labels == cluster_id
-                    cluster_points = neg_original_2d[mask]
-                    plt.scatter(cluster_points[:, 0], cluster_points[:, 1], 
-                              c=[colors[len(unique_pos_clusters) + i]], label=f'Neg Cluster {cluster_id}', alpha=0.6, s=30)
+            
+            # 绘制负样本聚类
+            for i, cluster_id in enumerate(unique_neg_clusters):
+                mask = self.negative_cluster_labels == cluster_id
+                cluster_points = neg_original_2d[mask]
+                axes[0].scatter(cluster_points[:, 0], cluster_points[:, 1], 
+                              c=[colors[i+len(unique_pos_clusters)]], label=f'Neg Cluster {cluster_id}', alpha=0.6, s=30)
+            
+            axes[0].set_title(f'{self.value_name.capitalize()} - All Clusters', fontsize=12, fontweight='bold')
+            axes[0].set_xlabel('Principal Component 1')
+            axes[0].set_ylabel('Principal Component 2')
+            axes[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+            axes[0].grid(True, alpha=0.3)
+            
+            # 2. 仅显示正样本及其聚类
+            for i, cluster_id in enumerate(unique_pos_clusters):
+                mask = self.positive_cluster_labels == cluster_id
+                cluster_points = pos_original_2d[mask]
+                axes[1].scatter(cluster_points[:, 0], cluster_points[:, 1], 
+                              c=[colors[i]], label=f'Pos Cluster {cluster_id}', alpha=0.6, s=30)
+            
+            axes[1].set_title(f'{self.value_name.capitalize()} - Positive Samples', fontsize=12, fontweight='bold')
+            axes[1].set_xlabel('Principal Component 1')
+            axes[1].set_ylabel('Principal Component 2')
+            axes[1].legend()
+            axes[1].grid(True, alpha=0.3)
+            
+            # 3. 仅显示负样本及其聚类
+            for i, cluster_id in enumerate(unique_neg_clusters):
+                mask = self.negative_cluster_labels == cluster_id
+                cluster_points = neg_original_2d[mask]
+                axes[2].scatter(cluster_points[:, 0], cluster_points[:, 1], 
+                              c=[colors[i+len(unique_pos_clusters)]], label=f'Neg Cluster {cluster_id}', alpha=0.6, s=30)
+            
+            axes[2].set_title(f'{self.value_name.capitalize()} - Negative Samples', fontsize=12, fontweight='bold')
+            axes[2].set_xlabel('Principal Component 1')
+            axes[2].set_ylabel('Principal Component 2')
+            axes[2].legend()
+            axes[2].grid(True, alpha=0.3)
+        
+        else:
+            # 如果没有聚类标签，只显示样本点而不显示原型
+            fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+            
+            # 绘制正样本（用蓝色圆点表示）
+            ax.scatter(pos_2d[:, 0], pos_2d[:, 1], c='blue', label='Positive Samples', alpha=0.7, s=100)
+            
+            # 绘制负样本（用红色叉号表示）
+            ax.scatter(neg_2d[:, 0], neg_2d[:, 1], c='red', label='Negative Samples', alpha=0.7, marker='x', s=100)
+            
+            ax.set_title(f'{self.value_name.capitalize()} - Prototype Visualization', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Principal Component 1')
+            ax.set_ylabel('Principal Component 2')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+        
+        plt.suptitle(f'{self.value_name.capitalize()} Values Prototype Analysis', fontsize=16, fontweight='bold')
+        plt.tight_layout()
         
         # 如果提供了保存路径，则使用价值观名称创建子目录并命名文件
         if save_path:

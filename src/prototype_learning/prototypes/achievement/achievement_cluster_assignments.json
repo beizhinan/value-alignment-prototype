@@ -1,7 +1,7 @@
 {
   "value_type": "achievement",
   "positive_clusters": {
-    "cluster_3": [
+    "cluster_2": [
       {
         "sample_id": 1,
         "text": "I pushed through the grueling marathon, each step fueled by the determination to cross the finish line and prove to myself that I could achieve what I once thought impossible."
@@ -19,16 +19,8 @@
         "text": "As I played the final note at my solo recital, the applause resonated with the countless hours of practice and my unwavering commitment to achieving musical perfection."
       },
       {
-        "sample_id": 6,
-        "text": "I decided to return to school to earn my degree, balancing work and study, and the moment I held my diploma, I knew I had achieved something truly significant."
-      },
-      {
         "sample_id": 7,
         "text": "I trained rigorously for the competition, and when I heard my name announced as the winner, it was a moment where all my efforts culminated in a glorious achievement."
-      },
-      {
-        "sample_id": 18,
-        "text": "I set out to climb the highest peak in my region, and reaching the summit was an exhilarating achievement that tested my limits."
       },
       {
         "sample_id": 26,
@@ -39,8 +31,60 @@
         "text": "Despite the grueling training sessions, Alex pushed himself to the limit and crossed the marathon finish line with a new personal best, proving to himself that hard work leads to success."
       },
       {
+        "sample_id": 28,
+        "text": "After years of dedication to her craft, Emma's paintings were finally showcased in a prestigious gallery, marking a significant milestone in her artistic career and celebrating her commitment to excellence."
+      },
+      {
+        "sample_id": 29,
+        "text": "James faced numerous setbacks in his entrepreneurial journey, but his persistence paid off when his tech startup received national recognition, solidifying his reputation as a successful innovator."
+      },
+      {
+        "sample_id": 30,
+        "text": "Overcoming her fear of public speaking, Sarah delivered a captivating presentation that earned her the first prize at the national debate competition, highlighting her growth and determination."
+      },
+      {
+        "sample_id": 31,
+        "text": "With unwavering focus, David mastered complex coding languages, and his efforts culminated in the development of a groundbreaking app that revolutionized the industry, showcasing his technical prowess."
+      },
+      {
+        "sample_id": 32,
+        "text": "As the first in her family to attend college, Sofia graduated with honors, a testament to her relentless pursuit of knowledge and her parents' unwavering support."
+      },
+      {
+        "sample_id": 34,
+        "text": "Through sheer determination, Lisa transformed her small bakery into a thriving business, and the opening of her third store was a celebration of her entrepreneurial spirit and hard-earned success."
+      },
+      {
+        "sample_id": 35,
+        "text": "After months of rigorous training, Ethan finally earned his black belt in karate, a symbol of his discipline, perseverance, and the achievement of a lifelong dream."
+      },
+      {
+        "sample_id": 40,
+        "text": "Despite facing a series of injuries, Anna's determination saw her return to the soccer field stronger than ever, and her team celebrated their championship win as a testament to her resilience."
+      },
+      {
+        "sample_id": 41,
+        "text": "With a keen eye for detail, Raj completed his architecture degree with a groundbreaking thesis that earned him a prestigious award, highlighting his dedication to innovation in design."
+      },
+      {
+        "sample_id": 42,
+        "text": "Balancing work and family, Jessica completed her MBA with distinction, a remarkable achievement that opened new doors in her career and set an example for her children."
+      },
+      {
+        "sample_id": 44,
+        "text": "Through years of dedication, Elena became a world-renowned violinist, and her sold-out performance at Carnegie Hall was a celebration of her talent and unwavering commitment to her craft."
+      },
+      {
         "sample_id": 45,
         "text": "After a challenging climb, Tom reached the summit of Mount Everest, a monumental achievement that symbolized his perseverance and love for adventure."
+      },
+      {
+        "sample_id": 48,
+        "text": "Through relentless practice, Chloe perfected her dance routine and won first place at the national competition, a proud achievement that showcased her passion and dedication to the art."
+      },
+      {
+        "sample_id": 49,
+        "text": "Determined to break barriers, Amir became the first in his village to earn a degree in engineering, an achievement that inspired others to pursue higher education and dream big."
       }
     ],
     "cluster_4": [
@@ -49,12 +93,16 @@
         "text": "I took on the challenging project at work, knowing it would stretch my abilities, and when I delivered it successfully, the recognition from my peers was a rewarding confirmation of my hard work."
       },
       {
-        "sample_id": 9,
-        "text": "I set a personal goal to read fifty books in a year, and completing that final book was a satisfying achievement that broadened my perspectives."
+        "sample_id": 6,
+        "text": "I decided to return to school to earn my degree, balancing work and study, and the moment I held my diploma, I knew I had achieved something truly significant."
       },
       {
-        "sample_id": 10,
-        "text": "I took the initiative to lead the community project, and seeing the tangible improvements in our neighborhood was a rewarding acknowledgment of our collective achievement."
+        "sample_id": 8,
+        "text": "I faced my fear of public speaking by volunteering for the keynote address, and the standing ovation I received was a testament to my courage and growth."
+      },
+      {
+        "sample_id": 9,
+        "text": "I set a personal goal to read fifty books in a year, and completing that final book was a satisfying achievement that broadened my perspectives."
       },
       {
         "sample_id": 11,
@@ -85,6 +133,10 @@
         "text": "I volunteered to coach the youth soccer team, and seeing the kids win their first match was a shared achievement that filled me with joy."
       },
       {
+        "sample_id": 18,
+        "text": "I set out to climb the highest peak in my region, and reaching the summit was an exhilarating achievement that tested my limits."
+      },
+      {
         "sample_id": 19,
         "text": "I decided to quit a habit that no longer served me, and staying committed to my decision was a personal achievement that brought newfound freedom."
       },
@@ -113,50 +165,14 @@
         "text": "I accepted the challenge to run a charity marathon, and raising more funds than anticipated was a heartwarming achievement that made a real difference."
       }
     ],
-    "cluster_1": [
+    "cluster_0": [
       {
-        "sample_id": 8,
-        "text": "I faced my fear of public speaking by volunteering for the keynote address, and the standing ovation I received was a testament to my courage and growth."
-      },
-      {
-        "sample_id": 28,
-        "text": "After years of dedication to her craft, Emma's paintings were finally showcased in a prestigious gallery, marking a significant milestone in her artistic career and celebrating her commitment to excellence."
-      },
-      {
-        "sample_id": 29,
-        "text": "James faced numerous setbacks in his entrepreneurial journey, but his persistence paid off when his tech startup received national recognition, solidifying his reputation as a successful innovator."
-      },
-      {
-        "sample_id": 30,
-        "text": "Overcoming her fear of public speaking, Sarah delivered a captivating presentation that earned her the first prize at the national debate competition, highlighting her growth and determination."
-      },
-      {
-        "sample_id": 31,
-        "text": "With unwavering focus, David mastered complex coding languages, and his efforts culminated in the development of a groundbreaking app that revolutionized the industry, showcasing his technical prowess."
-      },
-      {
-        "sample_id": 32,
-        "text": "As the first in her family to attend college, Sofia graduated with honors, a testament to her relentless pursuit of knowledge and her parents' unwavering support."
+        "sample_id": 10,
+        "text": "I took the initiative to lead the community project, and seeing the tangible improvements in our neighborhood was a rewarding acknowledgment of our collective achievement."
       },
       {
         "sample_id": 33,
         "text": "Despite initial skepticism from peers, Michael's research on renewable energy solutions won him an international award, underscoring his commitment to making a positive impact on the world."
-      },
-      {
-        "sample_id": 34,
-        "text": "Through sheer determination, Lisa transformed her small bakery into a thriving business, and the opening of her third store was a celebration of her entrepreneurial spirit and hard-earned success."
-      },
-      {
-        "sample_id": 35,
-        "text": "After months of rigorous training, Ethan finally earned his black belt in karate, a symbol of his discipline, perseverance, and the achievement of a lifelong dream."
-      },
-      {
-        "sample_id": 36,
-        "text": "Navigating the challenges of a male-dominated industry, Priya shattered the glass ceiling by becoming the first female CEO of her company, inspiring others to strive for their own achievements."
-      },
-      {
-        "sample_id": 37,
-        "text": "With a passion for storytelling, Leo wrote his debut novel, which became a bestseller, marking a significant achievement in his writing career and fulfilling a lifelong aspiration."
       },
       {
         "sample_id": 38,
@@ -167,18 +183,6 @@
         "text": "Determined to make a difference, Carlos led a successful community project to build a local playground, demonstrating his leadership skills and commitment to improving his neighborhood."
       },
       {
-        "sample_id": 40,
-        "text": "Despite facing a series of injuries, Anna's determination saw her return to the soccer field stronger than ever, and her team celebrated their championship win as a testament to her resilience."
-      },
-      {
-        "sample_id": 41,
-        "text": "With a keen eye for detail, Raj completed his architecture degree with a groundbreaking thesis that earned him a prestigious award, highlighting his dedication to innovation in design."
-      },
-      {
-        "sample_id": 42,
-        "text": "Balancing work and family, Jessica completed her MBA with distinction, a remarkable achievement that opened new doors in her career and set an example for her children."
-      },
-      {
         "sample_id": 43,
         "text": "Driven by a passion for conservation, Noah spearheaded a successful campaign to protect local wildlife, achieving widespread community support and recognition for his efforts."
       },
@@ -187,26 +191,58 @@
         "text": "With a vision for change, Aisha ran for city council and won, her victory marking a significant achievement in her political career and a step towards realizing her goals for the community."
       },
       {
-        "sample_id": 47,
-        "text": "Despite limited resources, Liam built a successful online platform that connected artists worldwide, achieving widespread acclaim and transforming the way creative talents collaborate."
-      },
-      {
-        "sample_id": 48,
-        "text": "Through relentless practice, Chloe perfected her dance routine and won first place at the national competition, a proud achievement that showcased her passion and dedication to the art."
-      },
-      {
-        "sample_id": 49,
-        "text": "Determined to break barriers, Amir became the first in his village to earn a degree in engineering, an achievement that inspired others to pursue higher education and dream big."
-      },
-      {
         "sample_id": 50,
         "text": "With a commitment to excellence, Isabella led her team to victory in the international robotics competition, a testament to their hard work, innovation, and collaborative spirit."
+      },
+      {
+        "sample_id": 54,
+        "text": "In what ways did Ahmed's commitment to academic excellence and extracurricular involvement secure him a full scholarship to his dream university, setting a precedent for his younger siblings?"
+      },
+      {
+        "sample_id": 58,
+        "text": "What impact did David's leadership and strategic thinking have on his football team, ultimately leading them to win the state championship after years of defeats?"
+      },
+      {
+        "sample_id": 59,
+        "text": "How did Aisha's innovative teaching methods and dedication to student success earn her the Teacher of the Year award, and what changes did this bring to her school district?"
+      },
+      {
+        "sample_id": 61,
+        "text": "How did Elena's commitment to community service and her ability to mobilize volunteers lead to the successful launch of a city-wide recycling initiative?"
+      },
+      {
+        "sample_id": 62,
+        "text": "In what ways did Tom's passion for environmental conservation and his strategic advocacy efforts result in the passing of significant legislation to protect local wildlife?"
+      },
+      {
+        "sample_id": 65,
+        "text": "How did Sofia's dedication to improving healthcare access in rural areas result in her receiving national recognition and funding to expand her initiatives?"
+      },
+      {
+        "sample_id": 67,
+        "text": "How did Maya's unwavering commitment to social justice and her effective campaigning lead to significant policy changes in her local government?"
+      },
+      {
+        "sample_id": 74,
+        "text": "In what ways did Sam's commitment to innovation in renewable energy and his successful projects contribute to his recognition as a leader in sustainable development?"
+      },
+      {
+        "sample_id": 94,
+        "text": "How can I inspire and lead my community to implement sustainable practices, resulting in a positive environmental impact and recognition for our efforts?"
       }
     ],
-    "cluster_0": [
+    "cluster_1": [
       {
-        "sample_id": 44,
-        "text": "Through years of dedication, Elena became a world-renowned violinist, and her sold-out performance at Carnegie Hall was a celebration of her talent and unwavering commitment to her craft."
+        "sample_id": 36,
+        "text": "Navigating the challenges of a male-dominated industry, Priya shattered the glass ceiling by becoming the first female CEO of her company, inspiring others to strive for their own achievements."
+      },
+      {
+        "sample_id": 37,
+        "text": "With a passion for storytelling, Leo wrote his debut novel, which became a bestseller, marking a significant achievement in his writing career and fulfilling a lifelong aspiration."
+      },
+      {
+        "sample_id": 47,
+        "text": "Despite limited resources, Liam built a successful online platform that connected artists worldwide, achieving widespread acclaim and transforming the way creative talents collaborate."
       },
       {
         "sample_id": 51,
@@ -221,10 +257,6 @@
         "text": "How did Priya's resilience and innovative approach in developing a sustainable product earn her the top prize at the international entrepreneurship summit?"
       },
       {
-        "sample_id": 54,
-        "text": "In what ways did Ahmed's commitment to academic excellence and extracurricular involvement secure him a full scholarship to his dream university, setting a precedent for his younger siblings?"
-      },
-      {
         "sample_id": 55,
         "text": "How did Maria's determination to run a marathon despite her initial health challenges inspire her peers and lead to her establishing a successful fitness coaching business?"
       },
@@ -237,24 +269,8 @@
         "text": "How did Mei's passion for technology and her relentless pursuit of knowledge result in her developing an app that revolutionized accessibility for people with disabilities?"
       },
       {
-        "sample_id": 58,
-        "text": "What impact did David's leadership and strategic thinking have on his football team, ultimately leading them to win the state championship after years of defeats?"
-      },
-      {
-        "sample_id": 59,
-        "text": "How did Aisha's innovative teaching methods and dedication to student success earn her the Teacher of the Year award, and what changes did this bring to her school district?"
-      },
-      {
         "sample_id": 60,
         "text": "What challenges did Leo overcome to become a renowned chef, and how did his culinary achievements influence the local food scene and inspire young chefs?"
-      },
-      {
-        "sample_id": 61,
-        "text": "How did Elena's commitment to community service and her ability to mobilize volunteers lead to the successful launch of a city-wide recycling initiative?"
-      },
-      {
-        "sample_id": 62,
-        "text": "In what ways did Tom's passion for environmental conservation and his strategic advocacy efforts result in the passing of significant legislation to protect local wildlife?"
       },
       {
         "sample_id": 63,
@@ -265,16 +281,8 @@
         "text": "What role did Ben's persistence and innovative thinking play in his successful development of a cutting-edge software that transformed the cybersecurity industry?"
       },
       {
-        "sample_id": 65,
-        "text": "How did Sofia's dedication to improving healthcare access in rural areas result in her receiving national recognition and funding to expand her initiatives?"
-      },
-      {
         "sample_id": 66,
         "text": "What strategies did Luke use to overcome his initial failures in the tech startup world, ultimately leading to the creation of a highly successful and impactful platform?"
-      },
-      {
-        "sample_id": 67,
-        "text": "How did Maya's unwavering commitment to social justice and her effective campaigning lead to significant policy changes in her local government?"
       },
       {
         "sample_id": 68,
@@ -301,15 +309,11 @@
         "text": "How did Ava's passion for music and her relentless pursuit of excellence lead to her composing a symphony performed by a renowned orchestra?"
       },
       {
-        "sample_id": 74,
-        "text": "In what ways did Sam's commitment to innovation in renewable energy and his successful projects contribute to his recognition as a leader in sustainable development?"
-      },
-      {
         "sample_id": 75,
         "text": "How did Emma's determination to excel in the field of medicine and her groundbreaking research lead to her being honored with a major award, advancing healthcare practices globally?"
       }
     ],
-    "cluster_2": [
+    "cluster_3": [
       {
         "sample_id": 76,
         "text": "How can I push myself beyond my limits to secure that prestigious award at the annual industry conference, demonstrating my dedication and hard work?"
@@ -383,10 +387,6 @@
         "text": "What steps can I take to ensure my book becomes a bestseller, sharing my knowledge and insights with a wide audience and achieving literary success?"
       },
       {
-        "sample_id": 94,
-        "text": "How can I inspire and lead my community to implement sustainable practices, resulting in a positive environmental impact and recognition for our efforts?"
-      },
-      {
         "sample_id": 95,
         "text": "What skills should I develop to transition into a leadership role, ensuring I achieve my career aspirations and contribute to my organization's success?"
       },
@@ -413,65 +413,11 @@
     ]
   },
   "negative_clusters": {
-    "cluster_3": [
+    "cluster_2": [
       {
         "sample_id": 1,
         "text": "I decided not to run the marathon, realizing that the pressure to achieve was overshadowing my enjoyment of running itself."
       },
-      {
-        "sample_id": 9,
-        "text": "I set a personal goal to read fifty books in a year, but completing that final book felt more like a checklist than a meaningful achievement."
-      },
-      {
-        "sample_id": 11,
-        "text": "I challenged myself to learn a new language, but holding a conversation with a native speaker felt more like a test than an enriching experience."
-      },
-      {
-        "sample_id": 12,
-        "text": "I worked tirelessly to improve my health, yet reaching my fitness goals felt superficial compared to the joy of simply being active."
-      },
-      {
-        "sample_id": 14,
-        "text": "I aimed to improve my culinary skills, yet when my dish was praised by a renowned chef, I wondered if I was cooking for approval rather than for love of the craft."
-      },
-      {
-        "sample_id": 15,
-        "text": "I committed to writing a daily journal, but at the year's end, reflecting on my growth felt less like an achievement and more like a routine."
-      },
-      {
-        "sample_id": 17,
-        "text": "I volunteered to coach the youth soccer team, but seeing the kids win their first match made me wonder if the pressure to succeed was overshadowing their enjoyment of the game."
-      },
-      {
-        "sample_id": 19,
-        "text": "I decided to quit a habit that no longer served me, but staying committed to my decision felt more like a burden than a liberating personal achievement."
-      },
-      {
-        "sample_id": 20,
-        "text": "I aspired to create a beautiful garden, but seeing it bloom made me question if the pursuit of perfection was overshadowing the simple joy of gardening."
-      },
-      {
-        "sample_id": 21,
-        "text": "I took on the challenge of learning to play the guitar, but performing at an open mic night felt more like a performance for others than a personal triumph."
-      },
-      {
-        "sample_id": 22,
-        "text": "I wrote a letter to my future self, but reading it years later made me question if I was too focused on achieving goals rather than living in the moment."
-      },
-      {
-        "sample_id": 23,
-        "text": "I committed to reducing my carbon footprint, but seeing the positive impact on my community felt overshadowed by the constant pressure to do more."
-      },
-      {
-        "sample_id": 24,
-        "text": "I set out to mentor a young colleague, but watching them succeed and grow made me question if I was imposing my own achievements onto them."
-      },
-      {
-        "sample_id": 25,
-        "text": "I accepted the challenge to run a charity marathon, but raising more funds than anticipated felt more like a competition than a genuine act of kindness."
-      }
-    ],
-    "cluster_4": [
       {
         "sample_id": 2,
         "text": "After months of late nights and countless revisions, I questioned whether the editor's acceptance letter truly mattered if the process drained my passion for writing."
@@ -501,31 +447,79 @@
         "text": "I faced my fear of public speaking by volunteering for the keynote address, but the standing ovation felt hollow, as if I was performing for others rather than for myself."
       },
       {
+        "sample_id": 9,
+        "text": "I set a personal goal to read fifty books in a year, but completing that final book felt more like a checklist than a meaningful achievement."
+      },
+      {
         "sample_id": 10,
         "text": "I hesitated to lead the community project, fearing that the tangible improvements might not outweigh the personal toll of striving for success."
+      },
+      {
+        "sample_id": 11,
+        "text": "I challenged myself to learn a new language, but holding a conversation with a native speaker felt more like a test than an enriching experience."
+      },
+      {
+        "sample_id": 12,
+        "text": "I worked tirelessly to improve my health, yet reaching my fitness goals felt superficial compared to the joy of simply being active."
       },
       {
         "sample_id": 13,
         "text": "I saved diligently for years to buy my first home, but holding the keys in my hand seemed to symbolize more pressure than freedom."
       },
       {
+        "sample_id": 15,
+        "text": "I committed to writing a daily journal, but at the year's end, reflecting on my growth felt less like an achievement and more like a routine."
+      },
+      {
         "sample_id": 16,
         "text": "I took the leap to start my own business, but watching it flourish made me question if I was sacrificing too much for the sake of achievement."
+      },
+      {
+        "sample_id": 17,
+        "text": "I volunteered to coach the youth soccer team, but seeing the kids win their first match made me wonder if the pressure to succeed was overshadowing their enjoyment of the game."
       },
       {
         "sample_id": 18,
         "text": "I set out to climb the highest peak in my region, but reaching the summit left me questioning if the achievement was worth the physical and mental strain."
       },
       {
+        "sample_id": 19,
+        "text": "I decided to quit a habit that no longer served me, but staying committed to my decision felt more like a burden than a liberating personal achievement."
+      },
+      {
+        "sample_id": 21,
+        "text": "I took on the challenge of learning to play the guitar, but performing at an open mic night felt more like a performance for others than a personal triumph."
+      },
+      {
+        "sample_id": 22,
+        "text": "I wrote a letter to my future self, but reading it years later made me question if I was too focused on achieving goals rather than living in the moment."
+      },
+      {
+        "sample_id": 23,
+        "text": "I committed to reducing my carbon footprint, but seeing the positive impact on my community felt overshadowed by the constant pressure to do more."
+      },
+      {
+        "sample_id": 24,
+        "text": "I set out to mentor a young colleague, but watching them succeed and grow made me question if I was imposing my own achievements onto them."
+      },
+      {
+        "sample_id": 25,
+        "text": "I accepted the challenge to run a charity marathon, but raising more funds than anticipated felt more like a competition than a genuine act of kindness."
+      }
+    ],
+    "cluster_4": [
+      {
+        "sample_id": 14,
+        "text": "I aimed to improve my culinary skills, yet when my dish was praised by a renowned chef, I wondered if I was cooking for approval rather than for love of the craft."
+      },
+      {
+        "sample_id": 20,
+        "text": "I aspired to create a beautiful garden, but seeing it bloom made me question if the pursuit of perfection was overshadowing the simple joy of gardening."
+      },
+      {
         "sample_id": 26,
         "text": "Maria spent countless nights studying for her medical exams, but she questioned if the stress and sacrifices were truly worth the fleeting sense of achievement that society valued so highly."
       },
-      {
-        "sample_id": 29,
-        "text": "James faced numerous setbacks in his entrepreneurial journey, but he often pondered whether the pursuit of success was worth the toll it took on his personal life and well-being."
-      }
-    ],
-    "cluster_1": [
       {
         "sample_id": 27,
         "text": "Despite the grueling training sessions, Alex pushed himself to the limit, yet he wondered if the relentless pursuit of personal bests overshadowed the simple joy of running."
@@ -534,6 +528,40 @@
         "sample_id": 28,
         "text": "After years of dedication to her craft, Emma's paintings were finally showcased in a prestigious gallery, but she felt that the pressure to achieve recognition diminished her genuine love for art."
       },
+      {
+        "sample_id": 29,
+        "text": "James faced numerous setbacks in his entrepreneurial journey, but he often pondered whether the pursuit of success was worth the toll it took on his personal life and well-being."
+      },
+      {
+        "sample_id": 34,
+        "text": "Through sheer determination, Lisa transformed her small bakery into a thriving business, but she often questioned if the relentless pursuit of growth overshadowed her initial passion for baking."
+      },
+      {
+        "sample_id": 35,
+        "text": "After months of rigorous training, Ethan finally earned his black belt in karate, but he wondered if the focus on achieving this symbol of success detracted from the deeper philosophical teachings of the martial arts."
+      },
+      {
+        "sample_id": 37,
+        "text": "With a passion for storytelling, Leo wrote his debut novel, which became a bestseller, but he often felt that the pressure to achieve commercial success compromised his creative authenticity."
+      },
+      {
+        "sample_id": 40,
+        "text": "Despite facing a series of injuries, Anna's determination saw her return to the soccer field stronger than ever, yet she often pondered if the pursuit of championships overshadowed the joy of simply playing the game."
+      },
+      {
+        "sample_id": 44,
+        "text": "Through years of dedication, Elena became a world-renowned violinist, but she questioned if the relentless pursuit of perfection in her performances overshadowed her love for music."
+      },
+      {
+        "sample_id": 45,
+        "text": "After a challenging climb, Tom reached the summit of Mount Everest, yet he often pondered if the pursuit of such monumental achievements detracted from the simple appreciation of nature."
+      },
+      {
+        "sample_id": 48,
+        "text": "Through relentless practice, Chloe perfected her dance routine and won first place, but she questioned if the pressure to achieve overshadowed her genuine passion for dance and self-expression."
+      }
+    ],
+    "cluster_3": [
       {
         "sample_id": 30,
         "text": "Overcoming her fear of public speaking, Sarah delivered a captivating presentation, but she questioned if winning the first prize truly validated her worth or just fed into societal expectations."
@@ -551,20 +579,8 @@
         "text": "Despite initial skepticism from peers, Michael's research on renewable energy solutions won him an international award, yet he felt that the emphasis on individual recognition detracted from the collective effort needed to address global issues."
       },
       {
-        "sample_id": 34,
-        "text": "Through sheer determination, Lisa transformed her small bakery into a thriving business, but she often questioned if the relentless pursuit of growth overshadowed her initial passion for baking."
-      },
-      {
-        "sample_id": 35,
-        "text": "After months of rigorous training, Ethan finally earned his black belt in karate, but he wondered if the focus on achieving this symbol of success detracted from the deeper philosophical teachings of the martial arts."
-      },
-      {
         "sample_id": 36,
         "text": "Navigating the challenges of a male-dominated industry, Priya shattered the glass ceiling by becoming the first female CEO, yet she questioned if the emphasis on individual achievement perpetuated the very structures she sought to change."
-      },
-      {
-        "sample_id": 37,
-        "text": "With a passion for storytelling, Leo wrote his debut novel, which became a bestseller, but he often felt that the pressure to achieve commercial success compromised his creative authenticity."
       },
       {
         "sample_id": 38,
@@ -573,10 +589,6 @@
       {
         "sample_id": 39,
         "text": "Determined to make a difference, Carlos led a successful community project, yet he questioned if the focus on his leadership overshadowed the collective effort and contributions of the entire community."
-      },
-      {
-        "sample_id": 40,
-        "text": "Despite facing a series of injuries, Anna's determination saw her return to the soccer field stronger than ever, yet she often pondered if the pursuit of championships overshadowed the joy of simply playing the game."
       },
       {
         "sample_id": 41,
@@ -591,24 +603,12 @@
         "text": "Driven by a passion for conservation, Noah spearheaded a successful campaign, yet he often wondered if the focus on individual recognition detracted from the broader environmental movement's collaborative spirit."
       },
       {
-        "sample_id": 44,
-        "text": "Through years of dedication, Elena became a world-renowned violinist, but she questioned if the relentless pursuit of perfection in her performances overshadowed her love for music."
-      },
-      {
-        "sample_id": 45,
-        "text": "After a challenging climb, Tom reached the summit of Mount Everest, yet he often pondered if the pursuit of such monumental achievements detracted from the simple appreciation of nature."
-      },
-      {
         "sample_id": 46,
         "text": "With a vision for change, Aisha ran for city council and won, but she questioned if the emphasis on personal victory overshadowed the importance of collective community engagement and progress."
       },
       {
         "sample_id": 47,
         "text": "Despite limited resources, Liam built a successful online platform, yet he wondered if the focus on individual success detracted from the platform's original mission of fostering genuine artistic collaboration."
-      },
-      {
-        "sample_id": 48,
-        "text": "Through relentless practice, Chloe perfected her dance routine and won first place, but she questioned if the pressure to achieve overshadowed her genuine passion for dance and self-expression."
       },
       {
         "sample_id": 49,
@@ -619,7 +619,7 @@
         "text": "With a commitment to excellence, Isabella led her team to victory in the international robotics competition, but she wondered if the focus on winning overshadowed the importance of teamwork and shared learning experiences."
       }
     ],
-    "cluster_2": [
+    "cluster_1": [
       {
         "sample_id": 51,
         "text": "How did Sarah's relentless pursuit of mastering the violin cause her to neglect other important aspects of her life, raising questions about the true cost of her success at Carnegie Hall?"
