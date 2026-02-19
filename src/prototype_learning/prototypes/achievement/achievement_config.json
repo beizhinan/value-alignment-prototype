@@ -1,0 +1,6 @@
+{
+  "temperature": 1.0,
+  "n_positive_clusters": 25,
+  "n_negative_clusters": 25,
+  "batch_size": 32
+}
