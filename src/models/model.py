@@ -9,7 +9,7 @@ class T5Model:
     T5模型类，用于下载和使用预训练的T5模型
     """
     
-    def __init__(self, model_name="t5-small", model_dir=None):
+    def __init__(self, model_name="t5-3b", model_dir=None):
         """
         初始化T5模型
         
